@@ -132,7 +132,7 @@ export default function DiagnosticStepper() {
     if (!selectedPatient) return;
     
     try {
-      const response = await fetch("/api/diagnostics", {
+      const response = await fetchWithAuth("/api/diagnostics", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

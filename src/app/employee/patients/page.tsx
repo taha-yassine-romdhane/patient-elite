@@ -8,6 +8,7 @@ import PatientForm, { PatientFormData } from "@/components/PatientForm";
 import Modal from "@/components/ui/Modal";
 import PatientEditModal from "@/components/patients/PatientEditModal";
 import { calculateIAHSeverity, formatIAHValue } from "@/utils/diagnosticUtils";
+import { fetchWithAuth } from "@/lib/apiClient";
 
 // Format date function
 const formatDate = (dateString: string): string => {
@@ -198,10 +199,10 @@ export default function PatientsPage() {
     try {
       // Fetch patients with all related data
       const [patientsRes, diagnosticsRes, salesRes, rentalsRes] = await Promise.all([
-        fetch("/api/patients"),
-        fetch("/api/diagnostics"),
-        fetch("/api/sales"),
-        fetch("/api/rentals")
+        fetchWithAuth("/api/patients"),
+        fetchWithAuth("/api/diagnostics"),
+        fetchWithAuth("/api/sales"),
+        fetchWithAuth("/api/rentals")
       ]);
 
       if (!patientsRes.ok || !diagnosticsRes.ok || !salesRes.ok || !rentalsRes.ok) {
