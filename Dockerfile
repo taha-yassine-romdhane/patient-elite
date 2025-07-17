@@ -53,3 +53,6 @@ USER nextjs
 EXPOSE 3002
 ENV PORT 3002
 ENV HOSTNAME "0.0.0.0"
+
+# Command to run the application
+CMD ["node", "server.js"]
