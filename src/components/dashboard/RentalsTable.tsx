@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { fetchWithAuth } from "@/lib/apiClient";
 
 // Format date function
 const formatDate = (dateString: string): string => {
@@ -161,7 +162,7 @@ export default function RentalsTable() {
     const fetchRentals = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch("/api/rentals");
+        const response = await fetchWithAuth("/api/rentals");
         if (!response.ok) {
           throw new Error("Erreur lors de la récupération des locations");
         }

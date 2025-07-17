@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { calculateIAHSeverity, formatIAHValue } from "@/utils/diagnosticUtils";
+import { fetchWithAuth } from "@/lib/apiClient";
 
 // Format date function
 const formatDate = (dateString: string): string => {
@@ -102,7 +103,7 @@ export default function SalesTable() {
     const fetchSales = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch("/api/sales");
+        const response = await fetchWithAuth("/api/sales");
         if (!response.ok) {
           throw new Error("Erreur lors de la récupération des ventes");
         }
@@ -468,26 +469,6 @@ export default function SalesTable() {
               <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Créé par
               </th>
-              <th 
-                scope="col" 
-                className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
-                onClick={() => handleSort("amount")}
-              >
-                <div className="flex items-center">
-                  Montant
-                  {sortBy === "amount" && (
-                    <svg className={`ml-1 h-4 w-4 ${sortOrder === "asc" ? "rotate-180" : ""}`} fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                </div>
-              </th>
-              <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Statut
-              </th>
-              <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Paiements
-              </th>
               <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Articles
               </th>
@@ -504,6 +485,7 @@ export default function SalesTable() {
                   className={`hover:bg-slate-50 transition-colors duration-150 cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-slate-25'}`}
                   onClick={() => window.location.href = `/employee/patients/${sale.patient.id}`}
                 >
+                  {/* Patient */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
@@ -520,22 +502,26 @@ export default function SalesTable() {
                       </div>
                     </div>
                   </td>
+                  {/* Date */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-slate-900">{formatDate(sale.date)}</div>
                     <div className="text-xs text-slate-500">
                       {new Date(sale.createdAt).toLocaleDateString('fr-FR')}
                     </div>
                   </td>
+                  {/* Doctor */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-900">
                       {sale.patient.doctorName ? `Dr. ${sale.patient.doctorName}` : '-'}
                     </div>
                   </td>
+                  {/* Address */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-900">
                       {sale.patient.address || '-'}
                     </div>
                   </td>
+                  {/* Diagnostic */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     {latestDiagnostic ? (
                       <div className="flex flex-col space-y-1">
@@ -557,47 +543,15 @@ export default function SalesTable() {
                       </div>
                     )}
                   </td>
+
+                  {/* Created By */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-900">
                       {sale.createdBy ? `${sale.createdBy.name}` : '-'}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-bold text-slate-900">{sale.amount.toFixed(2)} TND</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                      ${sale.status === 'COMPLETED' ? 'bg-green-100 text-green-800' : 
-                        sale.status === 'CANCELLED' ? 'bg-red-100 text-red-800' : 
-                        'bg-yellow-100 text-yellow-800'}`}>
-                      {sale.status === 'COMPLETED' ? 'Complété' : 
-                       sale.status === 'CANCELLED' ? 'Annulé' : 'En attente'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-col space-y-1">
-                      {sale.payments.map((payment) => {
-                        const paymentColors = {
-                          CASH: 'bg-green-100 text-green-800',
-                          CHEQUE: 'bg-blue-100 text-blue-800',
-                          TRAITE: 'bg-purple-100 text-purple-800',
-                          CNAM: 'bg-orange-100 text-orange-800',
-                          VIREMENT: 'bg-indigo-100 text-indigo-800',
-                          MONDAT: 'bg-gray-100 text-gray-800'
-                        };
-                        const colorClass = paymentColors[payment.type] || 'bg-gray-100 text-gray-800';
-                        
-                        return (
-                          <span key={payment.id} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
-                            {payment.type}: {payment.amount.toFixed(2)} TND
-                            {payment.chequeNumber && ` (${payment.chequeNumber})`}
-                            {payment.chequeDate && ` - ${formatDate(payment.chequeDate)}`}
-                            {payment.traiteDueDate && ` - Échéance: ${formatDate(payment.traiteDueDate)}`}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </td>
+                  
+                  {/* Items */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex flex-wrap gap-2">
                       {getItemsWithPayments(sale).map((item, index) => (
@@ -613,11 +567,6 @@ export default function SalesTable() {
                           }`}
                         >
                           {item.name}
-                          {item.amount !== undefined && (
-                            <span className="ml-1 text-xs text-slate-500">
-                              ({item.amount.toFixed(2)} TND)
-                            </span>
-                          )}
                         </span>
                       ))}
                     </div>

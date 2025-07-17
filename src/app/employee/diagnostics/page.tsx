@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { Technician } from "@prisma/client";
 import { calculateIAHSeverity, validateIAHInput, formatIAHValue } from "@/utils/diagnosticUtils";
 import { createDiagnosticTask, saveTasksToLocalStorage } from "@/utils/taskUtils";
-
+import { fetchWithAuth } from "@/lib/apiClient";
 // Define TypeScript types based on our Prisma schema
 type Patient = {
   id: string;
@@ -51,8 +51,8 @@ export default function DiagnosticStepper() {
       setIsLoading(true);
       try {
         const [patientsResponse, techniciansResponse] = await Promise.all([
-          fetch("/api/patients"),
-          fetch("/api/technicians")
+          fetchWithAuth("/api/patients"),
+          fetchWithAuth("/api/technicians")
         ]);
         
         if (!patientsResponse.ok) {
