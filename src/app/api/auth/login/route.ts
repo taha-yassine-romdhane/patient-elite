@@ -1,0 +1,83 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { email, password } = body;
+
+    if (!email || !password) {
+      return NextResponse.json(
+        { message: 'Email et mot de passe requis' },
+        { status: 400 }
+      );
+    }
+
+    // Find technician by email
+    const technician = await prisma.technician.findFirst({
+      where: { email: email },
+    });
+
+    if (!technician) {
+      return NextResponse.json(
+        { message: 'Email ou mot de passe incorrect' },
+        { status: 401 }
+      );
+    }
+
+    // Compare passwords
+    const passwordMatch = await bcrypt.compare(password, technician.password);
+
+    if (!passwordMatch) {
+      return NextResponse.json(
+        { message: 'Email ou mot de passe incorrect' },
+        { status: 401 }
+      );
+    }
+
+    // Create JWT token
+    const token = jwt.sign(
+      {
+        id: technician.id,
+        email: technician.email,
+        role: technician.role,
+        name: technician.name,
+      },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '1d' }
+    );
+
+    // Set cookie with the token
+    const response = NextResponse.json(
+      {
+        message: 'Connexion réussie',
+        user: {
+          id: technician.id,
+          email: technician.email,
+          name: technician.name,
+          role: technician.role,
+        },
+        role: technician.role,
+      },
+      { status: 200 }
+    );
+
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 86400, // 1 day in seconds
+      path: '/',
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Login error:', error);
+    return NextResponse.json(
+      { message: 'Une erreur est survenue lors de la connexion' },
+      { status: 500 }
+    );
+  }
+}

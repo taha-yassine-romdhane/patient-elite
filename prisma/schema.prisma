@@ -1,0 +1,272 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Patient {
+  id              String       @id @default(cuid())
+  date            DateTime
+  fullName        String
+  phone           String
+  cin             String?      // Carte d'identité nationale
+  hasCnam         Boolean      @default(false)
+  cnamId          String?
+  affiliation     Affiliation?
+  beneficiary     Beneficiary?
+  region          String
+  address         String
+  addressDetails  String?
+  doctorName      String
+  technician      Technician?  @relation("PatientTechnician", fields: [technicianId], references: [id])
+  technicianId    String?
+  supervisor      Technician?  @relation("PatientSupervisor", fields: [supervisorId], references: [id])
+  supervisorId    String?
+  createdBy       Technician?  @relation("PatientCreator", fields: [createdById], references: [id])
+  createdById     String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  diagnostics     Diagnostic[] // Allow multiple diagnostics per patient
+  sales           Sale[] // Allow multiple sales per patient
+  rentals         Rental[] // Allow multiple rentals per patient
+}
+
+model Technician {
+  id                String    @id @default(cuid())
+  name              String    @unique
+  email             String    @unique
+  password          String
+  role              ROLE      @default(EMPLOYEE)
+  patientsAsTech    Patient[] @relation("PatientTechnician")
+  patientsAsSuper   Patient[] @relation("PatientSupervisor")
+  createdPatients   Patient[] @relation("PatientCreator")
+  createdDiagnostics Diagnostic[] @relation("DiagnosticCreator")
+  createdSales      Sale[]    @relation("SaleCreator")
+  createdRentals    Rental[]  @relation("RentalCreator")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+enum ROLE {
+  ADMIN
+  EMPLOYEE
+}
+
+enum Affiliation {
+  CNSS
+  CNRPS
+}
+
+enum Beneficiary {
+  SOCIAL_INSURED
+  SPOUSE
+  CHILD
+  ANCESTOR
+}
+
+model Diagnostic {
+  id        Int       @id @default(autoincrement())
+  date      DateTime
+  polygraph POLYGRAPH
+  iahResult Float
+  idResult  Float
+  remarks   String?
+  patient   Patient?  @relation(fields: [patientId], references: [id])
+  patientId String
+  createdBy Technician? @relation("DiagnosticCreator", fields: [createdById], references: [id])
+  createdById String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Sale {
+  id          String             @id @default(cuid())
+  date        DateTime
+  amount      Float
+  status      TRANSACTION_STATUS @default(PENDING)
+  notes       String?
+  patient     Patient?           @relation(fields: [patientId], references: [id])
+  patientId   String
+  devices     Device[]
+  accessories Accessory[]
+  payments    Payment[]
+  createdBy   Technician?        @relation("SaleCreator", fields: [createdById], references: [id])
+  createdById String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+// Updated Payment model to support payment periods and overdue tracking
+model Payment {
+  id                String           @id @default(cuid())
+  amount            Float
+  type              SALETYPE
+  paymentDate       DateTime?
+  // Payment period fields - when this payment covers
+  periodStartDate   DateTime?
+  periodEndDate     DateTime?
+  // Overdue tracking fields
+  dueDate           DateTime?        // When payment is due
+  overdueDate       DateTime?        // When payment becomes overdue
+  isOverdue         Boolean          @default(false)
+  overdueDays       Int              @default(0)
+  reminderSent      Boolean          @default(false)
+  // Payment method specific fields
+  chequeNumber      String?
+  chequeDate        DateTime?
+  traiteDueDate     DateTime?
+  cnamStatus        String?          // "ATTENTE" or "ACCORD"
+  cnamFollowupDate  DateTime?
+  notes             String?
+  // Relations
+  sale              Sale?            @relation(fields: [saleId], references: [id])
+  saleId            String?
+  rental            Rental?          @relation(fields: [rentalId], references: [id])
+  rentalId          String?
+  rentalItem        RentalItem?      @relation(fields: [rentalItemId], references: [id])
+  rentalItemId      String?
+  rentalGroup       RentalGroup?     @relation(fields: [rentalGroupId], references: [id])
+  rentalGroupId     String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+// Updated Device model
+model Device {
+  id           String       @id @default(cuid())
+  name         String
+  model        String
+  serialNumber String
+  price        Float        @default(0)
+  sale         Sale?        @relation(fields: [saleId], references: [id])
+  saleId       String?
+  rental       Rental?      @relation(fields: [rentalId], references: [id])
+  rentalId     String?
+  rentalItems  RentalItem[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+// Updated Accessory model
+model Accessory {
+  id          String       @id @default(cuid())
+  name        String
+  model       String
+  quantity    Int
+  price       Float        @default(0)
+  sale        Sale?        @relation(fields: [saleId], references: [id])
+  saleId      String?
+  rental      Rental?      @relation(fields: [rentalId], references: [id])
+  rentalId    String?
+  rentalItems RentalItem[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+// Updated Rental model to support concurrent rentals and groups
+model Rental {
+  id                String             @id @default(cuid())
+  startDate         DateTime
+  endDate           DateTime
+  amount            Float
+  status            TRANSACTION_STATUS @default(PENDING)
+  returnStatus      RETURN_STATUS      @default(NOT_RETURNED)
+  notes             String?
+  actualReturnDate  DateTime?
+  type              SALETYPE
+  patient           Patient?           @relation(fields: [patientId], references: [id])
+  patientId         String
+  devices           Device[]
+  accessories       Accessory[]
+  payments          Payment[]
+  rentalItems       RentalItem[]       // Individual items with their own pricing
+  rentalGroups      RentalGroup[]      // Groups of items with shared pricing
+  createdBy         Technician?        @relation("RentalCreator", fields: [createdById], references: [id])
+  createdById       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+// New model: RentalGroup - represents groups of items that can be rented together
+model RentalGroup {
+  id                String             @id @default(cuid())
+  name              String
+  description       String?
+  totalPrice        Float              // Total price for the group
+  startDate         DateTime           // When this group rental starts
+  endDate           DateTime           // When this group rental ends
+  notes             String?
+  // Relations
+  rental            Rental             @relation(fields: [rentalId], references: [id])
+  rentalId          String
+  rentalItems       RentalItem[]       // Items in this group
+  payments          Payment[]          // Payments specifically for this group
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+// New model: RentalItem - represents individual devices/accessories within a rental
+model RentalItem {
+  id                String             @id @default(cuid())
+  itemType          RENTAL_ITEM_TYPE   // DEVICE or ACCESSORY
+  quantity          Int                @default(1)
+  unitPrice         Float              // Price per unit per period
+  totalPrice        Float              // Total price for this item
+  startDate         DateTime           // When this item's rental starts
+  endDate           DateTime           // When this item's rental ends
+  notes             String?
+  // Relations
+  rental            Rental             @relation(fields: [rentalId], references: [id])
+  rentalId          String
+  rentalGroup       RentalGroup?       @relation(fields: [rentalGroupId], references: [id])
+  rentalGroupId     String?
+  device            Device?            @relation(fields: [deviceId], references: [id])
+  deviceId          String?
+  accessory         Accessory?         @relation(fields: [accessoryId], references: [id])
+  accessoryId       String?
+  payments          Payment[]          // Payments specifically for this item
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+enum RENTAL_ITEM_TYPE {
+  DEVICE
+  ACCESSORY
+}
+
+enum SALETYPE {
+  CASH
+  CHEQUE
+  TRAITE
+  CNAM
+  VIREMENT
+  MONDAT
+}
+
+enum TRANSACTION_STATUS {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum RETURN_STATUS {
+  RETURNED
+  NOT_RETURNED
+  PARTIALLY_RETURNED
+  DAMAGED
+}
+
+enum POLYGRAPH {
+  NOX
+  PORTI
+}
