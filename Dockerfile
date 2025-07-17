@@ -4,7 +4,7 @@ FROM node:18-alpine AS base
 # Stage 2: Dependencies
 FROM base AS deps
 WORKDIR /app
-RUN apk add --no-cache build-base gcc autoconf automake libtool nasm vips-dev
+RUN apk add --no-cache build-base gcc autoconf automake libtool nasm vips-dev python3 make g++
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
 RUN npm install --legacy-peer-deps
