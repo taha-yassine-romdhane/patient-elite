@@ -3,7 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      network_mode: "host" 
+    network_mode: "host"
+    # When using network_mode: host, ports are ignored
+    # but keeping for documentation purposes
     ports:
       - "3002:3002"
     environment:
