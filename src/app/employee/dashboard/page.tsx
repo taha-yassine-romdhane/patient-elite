@@ -2,19 +2,18 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import TabSwitcher from "@/components/dashboard/TabSwitcher";
+import { fetchWithAuth } from "@/lib/apiClient";
 
 export default function EmployeeDashboard() {
   const [userName, setUserName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
   
   useEffect(() => {
     // Fetch user data when component mounts
     const fetchUserData = async () => {
       try {
-        const response = await fetch('/api/auth/me');
+        const response = await fetchWithAuth('/api/auth/me');
         if (response.ok) {
           const data = await response.json();
           setUserName(data.name);
@@ -32,11 +31,19 @@ export default function EmployeeDashboard() {
   const handleLogout = async () => {
     try {
       const response = await fetch('/api/auth/logout', {
-        method: 'POST',
+        method: 'POST'
       });
       
       if (response.ok) {
-        router.push('/login');
+        // Clear all auth data from localStorage
+        localStorage.removeItem('userInfo');
+        localStorage.removeItem('token');
+        
+        // Clear the cookie used by middleware
+        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict';
+        
+        // Use hard redirect instead of Next.js router to ensure complete navigation
+        window.location.href = '/login';
       }
     } catch (error) {
       console.error('Error during logout:', error);

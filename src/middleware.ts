@@ -3,11 +3,13 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
 export async function middleware(request: NextRequest) {
+  // For client-side navigation, we need to use cookies as an intermediary
+  // since middleware can't access localStorage directly
   const token = request.cookies.get('token')?.value;
   const { pathname } = request.nextUrl;
 
   // Paths that don't require authentication
-  if (pathname === '/login' || pathname === '/signup' || pathname.startsWith('/api/auth/login') || pathname.startsWith('/api/auth/signup')) {
+  if (pathname === '/login' || pathname.startsWith('/api/auth/login')) {
     // If user is already logged in, redirect to appropriate dashboard
     if (token) {
       try {

@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       { expiresIn: '1d' }
     );
 
-    // Set cookie with the token
+    // Return token in response body instead of setting a cookie
     const response = NextResponse.json(
       {
         message: 'Connexion réussie',
@@ -60,17 +60,10 @@ export async function POST(request: Request) {
           role: technician.role,
         },
         role: technician.role,
+        token: token, // Include token in response body
       },
       { status: 200 }
     );
-
-    response.cookies.set('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 86400, // 1 day in seconds
-      path: '/',
-    });
 
     return response;
   } catch (error) {

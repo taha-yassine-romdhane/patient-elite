@@ -9,9 +9,9 @@ export interface AuthUser {
 
 export async function getCurrentUser(request: Request): Promise<AuthUser | null> {
   try {
-    // Get token from cookie header
-    const token = request.headers.get('cookie')?.split('; ')
-      .find(row => row.startsWith('token='))?.split('=')[1];
+    // Get token from Authorization header instead of cookies
+    const authHeader = request.headers.get('Authorization');
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null;
     
     if (!token) {
       return null;

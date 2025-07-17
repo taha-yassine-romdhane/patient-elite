@@ -37,6 +37,19 @@ export default function LoginForm() {
       if (!response.ok) {
         throw new Error(data.message || "Une erreur est survenue lors de la connexion");
       }
+      
+      // Store token and user info in localStorage
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userInfo', JSON.stringify({
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name,
+        role: data.user.role
+      }));
+      
+      // Also set a cookie for the middleware (server-side)
+      // This is needed because middleware can't access localStorage
+      document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Strict`;
 
       // Redirect based on role
       if (data.role === "ADMIN") {

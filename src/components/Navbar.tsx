@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 
 type UserInfo = {
   id: string;
@@ -14,7 +14,6 @@ type UserInfo = {
 const Navbar = () => {
   const [user, setUser] = useState<UserInfo>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const router = useRouter();
   const pathname = usePathname();
   
   useEffect(() => {
@@ -30,18 +29,35 @@ const Navbar = () => {
     }
   }, []);
 
-  const handleLogout = () => {
-    // Clear user info from localStorage
-    localStorage.removeItem('userInfo');
-    
-    // Clear the auth cookie
-    document.cookie = 'authToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    
-    // Reset user state
-    setUser(null);
-    
-    // Redirect to login page
-    router.push('/login');
+  const handleLogout = async () => {
+    try {
+      // Call the logout API endpoint
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        // Clear all auth data from localStorage
+        localStorage.removeItem('userInfo');
+        localStorage.removeItem('token');
+        
+        // Clear the cookie used by middleware
+        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict';
+        
+        // Reset user state
+        setUser(null);
+        
+        // Use hard redirect instead of Next.js router to ensure complete navigation
+        window.location.href = '/login';
+      } else {
+        console.error('Logout failed:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
   };
 
   return (
@@ -62,44 +78,12 @@ const Navbar = () => {
             </Link>
             
             {user && (
-              <>
-                <Link 
-                  href={user.role === 'ADMIN' ? '/admin/dashboard' : '/employee/dashboard'} 
-                  className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 ${pathname.includes('/dashboard') ? 'bg-blue-700' : ''}`}
-                >
-                  Tableau de bord
-                </Link>
-                
-                <Link 
-                  href="/employee/diagnostics" 
-                  className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 ${pathname.includes('/diagnostics') ? 'bg-blue-700' : ''}`}
-                >
-                  Diagnostics
-                </Link>
-                
-                <Link 
-                  href="/employee/patients" 
-                  className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 ${pathname.includes('/patients') ? 'bg-blue-700' : ''}`}
-                >
-                  Patients
-                </Link>
-                
-                {user.role === 'ADMIN' && (
-                  <Link 
-                    href="/admin/technicians" 
-                    className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 ${pathname.includes('/technicians') ? 'bg-blue-700' : ''}`}
-                  >
-                    Techniciens
-                  </Link>
-                )}
-                
-                <button 
-                  onClick={handleLogout}
-                  className="ml-4 px-4 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700"
-                >
-                  Déconnexion
-                </button>
-              </>
+              <button 
+                onClick={handleLogout}
+                className="ml-4 px-4 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+              >
+                Déconnexion
+              </button>
             )}
             
             {!user && (
@@ -158,51 +142,15 @@ const Navbar = () => {
           </Link>
           
           {user && (
-            <>
-              <Link 
-                href={user.role === 'ADMIN' ? '/admin/dashboard' : '/employee/dashboard'} 
-                className="block px-3 py-2 rounded-md text-base font-medium hover:bg-blue-600 mt-1"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Tableau de bord
-              </Link>
-              
-              <Link 
-                href="/employee/diagnostics" 
-                className="block px-3 py-2 rounded-md text-base font-medium hover:bg-blue-600 mt-1"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Diagnostics
-              </Link>
-              
-              <Link 
-                href="/employee/patients" 
-                className="block px-3 py-2 rounded-md text-base font-medium hover:bg-blue-600 mt-1"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Patients
-              </Link>
-              
-              {user.role === 'ADMIN' && (
-                <Link 
-                  href="/admin/technicians" 
-                  className="block px-3 py-2 rounded-md text-base font-medium hover:bg-blue-600 mt-1"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Techniciens
-                </Link>
-              )}
-              
-              <button 
-                onClick={() => {
-                  handleLogout();
-                  setIsMenuOpen(false);
-                }}
-                className="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-red-600 hover:bg-red-700 mt-2"
-              >
-                Déconnexion
-              </button>
-            </>
+            <button 
+              onClick={() => {
+                handleLogout();
+                setIsMenuOpen(false);
+              }}
+              className="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-red-600 hover:bg-red-700 mt-2"
+            >
+              Déconnexion
+            </button>
           )}
           
           {!user && (
