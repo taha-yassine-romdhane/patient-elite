@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Pencil, FileText, Activity, TrendingUp, Calendar, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Pencil, FileText, Activity, TrendingUp, Calendar, AlertCircle, CheckCircle, Clock, Trash2 } from "lucide-react";
+import { fetchWithAuth } from "@/lib/apiClient";
 import { Technician, Patient } from "@prisma/client";
 import PatientForm, { PatientFormData } from "@/components/PatientForm";
 import Modal from "@/components/ui/Modal";
@@ -90,6 +91,8 @@ export default function PatientsPage() {
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const [showEditPatientModal, setShowEditPatientModal] = useState(false);
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [patientToDelete, setPatientToDelete] = useState<Patient | null>(null);
 
   // Get current user's ID if they are a technician
   const currentUserId = "";
@@ -366,6 +369,39 @@ export default function PatientsPage() {
     setShowEditPatientModal(true);
   };
 
+  const handleDeleteClick = (patient: Patient) => {
+    setPatientToDelete(patient);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!patientToDelete) return;
+
+    try {
+      const response = await fetchWithAuth(`/api/admin/patients?id=${patientToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete patient');
+      }
+
+      // Update state to remove the deleted patient from the list
+      setPatients((prev) => prev.filter((p) => p.id !== patientToDelete.id));
+      setFilteredPatients((prev) => prev.filter((p) => p.id !== patientToDelete.id));
+
+      // Close the modal and reset state
+      setIsDeleteModalOpen(false);
+      setPatientToDelete(null);
+
+    } catch (err: unknown) {
+      const error = err as Error;
+      console.error('Deletion failed:', error.message);
+      // Optionally, show an error message to the user
+    }
+  };
+
   const handlePatientUpdated = (updatedPatient: Patient) => {
     setPatients(prevPatients => 
       prevPatients.map(p => p.id === updatedPatient.id ? { ...p, ...updatedPatient } : p)
@@ -591,7 +627,7 @@ export default function PatientsPage() {
             <div className="bg-slate-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
               <Activity className="h-10 w-10 text-slate-400" />
             </div>
-            <h4 className="text-xl font-semibold text-slate-800 mb-2">
+            <h4 className="text-xl font-semibold text-slate-900 mb-2">
               {searchTerm ? "Aucun patient ne correspond à votre recherche" : "Aucun patient enregistré"}
             </h4>
             <p className="text-slate-600 mb-6">
@@ -820,6 +856,14 @@ export default function PatientsPage() {
                               <Pencil size={16} className="mr-1" />
                               Modifier
                             </button>
+                            <button
+                              onClick={() => handleDeleteClick(patient)}
+                              className="flex items-center px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                              title="Supprimer"
+                            >
+                              <Trash2 size={16} className="mr-1" />
+                              Supprimer
+                            </button>
                             <Link
                               href={`/employee/patients/${patient.id}`}
                               className="flex items-center px-3 py-1 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition-colors"
@@ -886,6 +930,39 @@ export default function PatientsPage() {
       
       {renderAddPatientModal()}
       {renderEditPatientModal()}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && patientToDelete && (
+        <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Confirmer la suppression">
+          <div className="p-6">
+            <div className="text-center">
+              <AlertCircle className="mx-auto h-12 w-12 text-red-400" />
+              <h3 className="mt-2 text-lg font-medium text-slate-900">Supprimer le patient</h3>
+              <p className="mt-2 text-sm text-slate-500">
+                Êtes-vous sûr de vouloir supprimer <span className="font-bold">{patientToDelete.fullName}</span> ?
+                <br />
+                Cette action est irréversible et supprimera toutes les données associées (ventes, locations, diagnostics, etc.).
+              </p>
+            </div>
+          </div>
+          <div className="bg-slate-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+              onClick={handleConfirmDelete}
+            >
+              Supprimer
+            </button>
+            <button
+              type="button"
+              className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
+              onClick={() => setIsDeleteModalOpen(false)}
+            >
+              Annuler
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
