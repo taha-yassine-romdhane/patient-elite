@@ -22,11 +22,14 @@ ENV SKIP_ENV_VALIDATION=1
 ENV NEXT_TELEMETRY_DISABLED=1
 # Skip TypeScript type checking during build
 ENV NEXT_TYPESCRIPT_CHECK=0
-# Disable static generation for database-dependent pages
-ENV NEXT_STATIC_GENERATION=false
+# Force dynamic rendering for all pages
+ENV NEXT_RUNTIME=nodejs
+# Increase build timeout
+ENV NEXT_STATIC_PAGE_GENERATION_TIMEOUT=180
+# Completely disable static generation
 RUN npx prisma generate --schema=./prisma/schema.prisma
-# Add --no-lint flag to skip linting during build
-RUN npm run build -- --no-lint
+# Build with no static generation
+RUN npm run build
 
 # Stage 4: Runner
 FROM base AS runner

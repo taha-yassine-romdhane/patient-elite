@@ -1,6 +1,7 @@
 /**
  * Utility functions to help with build-time vs runtime behavior
  */
+import { config } from './config';
 
 /**
  * Wraps a database function to skip execution during build time
@@ -10,7 +11,8 @@
  */
 export async function safeDbCall<T>(dbFn: () => Promise<T>, fallbackValue: T): Promise<T> {
   // Skip database calls during build time
-  if (process.env.NEXT_PUBLIC_SKIP_DB_CALLS === 'true') {
+  if (config.db.skipDatabaseCalls) {
+    console.log('Skipping database call during build time');
     return fallbackValue;
   }
   
