@@ -1,7 +1,10 @@
 "use client";
 
+"use client";
+
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { Technician } from "@prisma/client";
+import PatientCreationModal from "@/components/patients/PatientCreationModal";
 import { fetchWithAuth } from "@/lib/apiClient";
 
 type Patient = {
@@ -14,6 +17,8 @@ type Patient = {
   createdAt?: string;
 };
 
+
+
 interface PatientSelectionStepProps {
   onPatientSelect: (patient: Patient) => void;
 }
@@ -21,31 +26,44 @@ interface PatientSelectionStepProps {
 export default function PatientSelectionStep({ onPatientSelect }: PatientSelectionStepProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPatientModal, setShowPatientModal] = useState(false);
 
   useEffect(() => {
-    // Fetch patients when component mounts
-    const fetchPatients = async () => {
+    // Fetch patients and technicians when component mounts
+    const fetchData = async () => {
       setIsLoading(true);
       try {
-        const response = await fetchWithAuth("/api/patients");
-        if (!response.ok) {
+        const [patientsResponse, techniciansResponse] = await Promise.all([
+          fetchWithAuth("/api/admin/patients"),
+          fetch("/api/technicians")
+        ]);
+        
+        if (!patientsResponse.ok) {
           throw new Error("Erreur lors de la récupération des patients");
         }
-        const data = await response.json();
-        setPatients(data);
-        setFilteredPatients(data);
+        if (!techniciansResponse.ok) {
+          throw new Error("Erreur lors de la récupération des techniciens");
+        }
+        
+        const patientsData = await patientsResponse.json();
+        const techniciansData = await techniciansResponse.json();
+        
+        setPatients(patientsData);
+        setFilteredPatients(patientsData);
+        setTechnicians(techniciansData);
       } catch (err) {
-        setError("Erreur lors du chargement des patients");
+        setError("Erreur lors du chargement des données");
         console.error(err);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchPatients();
+    fetchData();
   }, []);
 
   useEffect(() => {
@@ -63,11 +81,13 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
     }
   }, [searchTerm, patients]);
 
+
+
   return (
     <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-      <div className="bg-gradient-to-r from-green-600 to-emerald-600  py-6">
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 py-6">
         <h2 className="text-2xl font-bold text-white mb-2">Sélectionner un patient</h2>
-        <p className="text-green-100">Choisissez le patient pour lequel vous souhaitez créer une vente</p>
+        <p className="text-purple-100">Choisissez le patient pour lequel vous souhaitez créer une location</p>
       </div>
       
       <div className="p-8">
@@ -81,25 +101,25 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
             <input
               type="text"
               placeholder="Rechercher par nom, téléphone ou région..."
-              className="w-full pl-12 pr-4 py-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-slate-700 placeholder-slate-400"
+              className="w-full pl-12 pr-4 py-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 text-slate-700 placeholder-slate-400"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Link
-            href="/patients/new"
+          <button
+            onClick={() => setShowPatientModal(true)}
             className="bg-emerald-600 text-white px-8 py-4 rounded-xl hover:bg-emerald-700 transition-all duration-200 font-medium shadow-sm flex items-center whitespace-nowrap"
           >
             <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
             Nouveau patient
-          </Link>
+          </button>
         </div>
         
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500 mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mb-4"></div>
             <p className="text-slate-600 font-medium">Chargement des patients...</p>
           </div>
         ) : error ? (
@@ -117,7 +137,7 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
               </div>
             </div>
             <button
-              className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
+              className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors font-medium"
               onClick={() => window.location.reload()}
             >
               Réessayer
@@ -134,12 +154,12 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
             <p className="text-slate-600 mb-6">
               {searchTerm ? "Aucun patient ne correspond à votre recherche" : "Aucun patient enregistré dans le système"}
             </p>
-            <Link
-              href="/patients/new"
-              className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium inline-block"
+            <button
+              onClick={() => setShowPatientModal(true)}
+              className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors font-medium inline-block"
             >
               Ajouter un nouveau patient
-            </Link>
+            </button>
           </div>
         ) : (
           <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
@@ -168,12 +188,12 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
                   {filteredPatients.map((patient, index) => (
                     <tr 
                       key={patient.id} 
-                      className={`hover:bg-green-50 transition-colors duration-150 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-25'}`}
+                      className={`hover:bg-purple-50 transition-colors duration-150 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-25'}`}
                     >
                       <td className="px-6 py-5 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-12 w-12">
-                            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-semibold text-lg">
+                            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-semibold text-lg">
                               {patient.fullName.charAt(0).toUpperCase()}
                             </div>
                           </div>
@@ -200,7 +220,7 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
                       <td className="px-6 py-5 whitespace-nowrap text-center">
                         <button
                           onClick={() => onPatientSelect(patient)}
-                          className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                          className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
                         >
                           <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -224,6 +244,32 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
           </div>
         )}
       </div>
+      
+      {/* Patient Creation Modal */}
+      <PatientCreationModal
+        isOpen={showPatientModal}
+        onClose={() => setShowPatientModal(false)}
+        technicians={technicians}
+        onPatientCreated={(newPatient) => {
+          // Add the new patient to the list and select it
+          // The API returns the full patient object with id, but the type is PatientFormData
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const patientResponse = newPatient as any;
+          const patientForList: Patient = {
+            id: patientResponse.id,
+            fullName: patientResponse.fullName,
+            phone: patientResponse.phone,
+            region: patientResponse.region,
+            address: patientResponse.address,
+            doctorName: patientResponse.doctorName,
+            createdAt: new Date().toISOString()
+          };
+          
+          setPatients(prevPatients => [patientForList, ...prevPatients]);
+          setFilteredPatients(prevPatients => [patientForList, ...prevPatients]);
+          onPatientSelect(patientForList);
+        }}
+      />
     </div>
   );
 }

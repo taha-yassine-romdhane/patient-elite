@@ -514,22 +514,24 @@ export async function GET(request: Request) {
     interface WhereClause {
       patientId?: string;
       returnStatus?: RETURN_STATUS;
-      createdById?: string;
+      patient?: {
+        technicianId?: string;
+      };
     }
-    
+
     const where: WhereClause = {};
-    
+
     if (patientId) {
       where.patientId = patientId;
     }
-    
+
     if (status) {
       where.returnStatus = status;
     }
-    
-    // Filter by creator for employee users
+
+    // Filter by technician for employee users
     if (currentUser?.role === 'EMPLOYEE') {
-      where.createdById = currentUser.id;
+      where.patient = { technicianId: currentUser.id };
     }
     
     const rentals = await prisma.rental.findMany({

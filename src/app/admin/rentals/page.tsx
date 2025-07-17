@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Stepper from "@/components/ui/Stepper";
-import PatientSelectionStep from "@/components/rentals/PatientSelectionStep";
-import RentalDetailsStep, { RentalFormData } from "@/components/rentals/RentalDetailsStep";
-import ConfirmationStep from "@/components/rentals/ConfirmationStep";
+import PatientSelectionStep from "@/components/admin/rentals/PatientSelectionStep";
+import RentalDetailsStep, { RentalFormData } from "@/components/admin/rentals/RentalDetailsStep";
+import ConfirmationStep from "@/components/admin/rentals/ConfirmationStep";
 
 type Patient = {
   id: string;

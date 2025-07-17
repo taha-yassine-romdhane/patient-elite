@@ -170,14 +170,14 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get('patientId');
     
-    const where: { patientId?: string; createdById?: string } = {};
+    const where: { patientId?: string; patient?: { technicianId?: string } } = {};
     if (patientId) {
       where.patientId = patientId;
     }
     
-    // Filter by creator for employee users
+    // Filter by technician for employee users
     if (currentUser?.role === 'EMPLOYEE') {
-      where.createdById = currentUser.id;
+      where.patient = { technicianId: currentUser.id };
     }
     
     const sales = await prisma.sale.findMany({

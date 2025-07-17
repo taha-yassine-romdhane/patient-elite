@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Stepper from "@/components/ui/Stepper";
-import PatientSelectionStep from "@/components/sales/PatientSelectionStep";
-import SaleDetailsStep from "@/components/sales/SaleDetailsStep";
-import ConfirmationStep from "@/components/sales/ConfirmationStep";
+import PatientSelectionStep from "@/components/admin/sales/PatientSelectionStep";
+import SaleDetailsStep from "@/components/admin/sales/SaleDetailsStep";
+import ConfirmationStep from "@/components/admin/sales/ConfirmationStep";
 import { SALETYPE } from "@prisma/client";
 import { createTasksFromSale, saveTasksToLocalStorage } from "@/utils/taskUtils";
 

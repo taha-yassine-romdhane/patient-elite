@@ -30,7 +30,7 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
     const fetchPatients = async () => {
       setIsLoading(true);
       try {
-        const response = await fetchWithAuth("/api/patients");
+        const response = await fetchWithAuth("/api/admin/patients");
         if (!response.ok) {
           throw new Error("Erreur lors de la récupération des patients");
         }

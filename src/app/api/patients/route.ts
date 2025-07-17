@@ -36,9 +36,9 @@ export async function GET(request: Request) {
       where.technicianId = technicianId;
     }
     
-    // Filter by creator for employee users
+    // Filter by technician for employee users
     if (currentUser?.role === 'EMPLOYEE') {
-      where.createdById = currentUser.id;
+      where.technicianId = currentUser.id;
     }
     
     const patients = await prisma.patient.findMany({

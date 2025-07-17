@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Technician } from "@prisma/client";
 import PatientCreationModal from "@/components/patients/PatientCreationModal";
+import { fetchWithAuth } from "@/lib/apiClient";
 
 type Patient = {
   id: string;
@@ -35,7 +36,7 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
       setIsLoading(true);
       try {
         const [patientsResponse, techniciansResponse] = await Promise.all([
-          fetch("/api/patients"),
+          fetchWithAuth("/api/patients"),
           fetch("/api/technicians")
         ]);
         
