@@ -15,7 +15,7 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/espace-elite
+ENV DATABASE_URL=postgres://postgres:admin@localhost:5432/elite_patient
 ENV SKIP_ENV_VALIDATION=1
 RUN npx prisma generate --schema=./prisma/schema.prisma
 RUN npm run build
@@ -37,8 +37,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/sharp ./node_modules/sharp
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-COPY startup.sh .
-RUN chmod +x startup.sh
 
 USER nextjs
 EXPOSE 3002
