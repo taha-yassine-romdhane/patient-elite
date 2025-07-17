@@ -1,9 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import PatientForm from '@/components/PatientForm';
 import Link from 'next/link';
+import { safeDbCall } from '@/lib/buildUtils';
 
 async function getTechnicians() {
-  return prisma.technician.findMany();
+  return safeDbCall(
+    () => prisma.technician.findMany(),
+    [] // Fallback empty array during build time
+  );
 }
 
 export default async function NewPatientPage() {
