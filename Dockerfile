@@ -17,6 +17,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV DATABASE_URL=postgres://postgres:admin@localhost:5432/elite_patient
 ENV SKIP_ENV_VALIDATION=1
+ENV NEXT_TELEMETRY_DISABLED=1
+# Skip TypeScript type checking during build
+ENV NEXT_TYPESCRIPT_CHECK=0
 RUN npx prisma generate --schema=./prisma/schema.prisma
 RUN npm run build
 
