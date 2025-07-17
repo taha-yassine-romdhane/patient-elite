@@ -11,9 +11,9 @@
   "dependencies": {
     "@prisma/extension-accelerate": "^2.0.2",
     "lucide-react": "^0.525.0",
-    "next": "12.3.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "next": "15.3.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

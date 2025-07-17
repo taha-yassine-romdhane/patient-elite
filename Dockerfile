@@ -1,52 +1,46 @@
-# Dockerfile for Next.js
+# Stage 1: Base
+FROM node:18-alpine AS base
 
-# Stage 1: Base image with Node.js
-FROM node:20-alpine AS base
-
-# Set working directory
-WORKDIR /app
-
-# Stage 2: Install dependencies
+# Stage 2: Dependencies
 FROM base AS deps
-
-# Copy package files and lockfile
+WORKDIR /app
+RUN apk add --no-cache build-base gcc autoconf automake libtool nasm vips-dev
 COPY package.json package-lock.json* ./
+COPY prisma ./prisma
+RUN npm install --legacy-peer-deps
 
-# Install dependencies
-RUN npm install
 
-# Stage 3: Build the application
-FROM base AS build
-
-# Copy dependencies from the previous stage
-COPY --from=deps /app/node_modules /app/node_modules
-
-# Copy the rest of the application source code
+# Stage 3: Builder
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Generate Prisma Client
-RUN npx prisma generate
-
-# Build the Next.js application
+ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/espace-elite
+ENV SKIP_ENV_VALIDATION=1
+RUN npx prisma generate --schema=./prisma/schema.prisma
 RUN npm run build
 
-# Stage 4: Production image
+# Stage 4: Runner
 FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV production
+ENV NEXT_TELEMETRY_DISABLED 1
+RUN apk add --no-cache vips-dev
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
 
-# Set the environment to production
-ENV NODE_ENV=production
+COPY --from=builder /app/public ./public
+RUN mkdir .next
+RUN chown nextjs:nodejs .next
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/sharp ./node_modules/sharp
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY startup.sh .
+RUN chmod +x startup.sh
 
-# Copy the built application from the 'build' stage
-COPY --from=build /app/next.config.ts ./
-COPY --from=build /app/public ./public
-COPY --from=build /app/package.json ./
-
-# Copy the standalone output
-COPY --from=build /app/.next/standalone ./
-COPY --from=build /app/.next/static ./.next/static
-
-# Expose the port the app runs on
-EXPOSE 3000
-
-# The command to start the application
-CMD ["node", ".next/standalone/server.js"]
+USER nextjs
+EXPOSE 3002
+ENV PORT 3002
+ENV HOSTNAME "0.0.0.0"
