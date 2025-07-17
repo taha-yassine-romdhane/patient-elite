@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { calculateIAHSeverity, formatIAHValue } from "@/utils/diagnosticUtils";
+import { fetchWithAuth } from "@/lib/apiClient";
 
 // Format date function
 const formatDate = (dateString: string): string => {
@@ -62,7 +63,7 @@ export default function DiagnosticTable() {
     const fetchDiagnostics = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch("/api/diagnostics");
+        const response = await fetchWithAuth("/api/diagnostics");
         if (!response.ok) {
           throw new Error("Erreur lors de la récupération des diagnostics");
         }
@@ -375,12 +376,8 @@ export default function DiagnosticTable() {
               <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Adresse
               </th>
-              <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Polygraphe
-              </th>
-              <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Créé par
-              </th>
+             
+             
               <th 
                 scope="col" 
                 className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
@@ -409,6 +406,12 @@ export default function DiagnosticTable() {
                   )}
                 </div>
               </th>
+              <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Créé par
+              </th>
+              <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Polygraphe
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-100">
@@ -420,6 +423,7 @@ export default function DiagnosticTable() {
                   className={`hover:bg-slate-50 transition-colors duration-150 cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-slate-25'}`}
                   onClick={() => window.location.href = `/employee/patients/${diagnostic.patient.id}`}
                 >
+                  {/* Patient Name */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
@@ -436,32 +440,26 @@ export default function DiagnosticTable() {
                       </div>
                     </div>
                   </td>
+                  {/* Date */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-slate-900">{formatDate(diagnostic.date)}</div>
                     <div className="text-xs text-slate-500">
                       {new Date(diagnostic.createdAt).toLocaleDateString('fr-FR')}
                     </div>
                   </td>
+                  {/* Doctor Name */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-900">
                       {diagnostic.patient.doctorName ? `Dr. ${diagnostic.patient.doctorName}` : '-'}
                     </div>
                   </td>
+                  {/* Address */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-900">
                       {diagnostic.patient.address || '-'}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {diagnostic.polygraph}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-900">
-                      {diagnostic.createdBy?.name || '-'}
-                    </div>
-                  </td>
+                  {/* IAH Result */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex flex-col space-y-1">
                       <div className="text-sm font-bold text-slate-900">
@@ -477,10 +475,23 @@ export default function DiagnosticTable() {
                       </span>
                     </div>
                   </td>
+                  {/* ID Result */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-slate-900">
                       {formatIAHValue(diagnostic.idResult)}
                     </div>
+                  </td>
+                   {/* Created By */}
+                   <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-slate-900">
+                      {diagnostic.createdBy?.name || '-'}
+                    </div>
+                  </td>
+                    {/* Polygraph */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {diagnostic.polygraph}
+                    </span>
                   </td>
                 </tr>
               );

@@ -375,12 +375,6 @@ export default function DiagnosticTable() {
               <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Adresse
               </th>
-              <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Polygraphe
-              </th>
-              <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Créé par
-              </th>
               <th 
                 scope="col" 
                 className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
@@ -408,6 +402,12 @@ export default function DiagnosticTable() {
                     </svg>
                   )}
                 </div>
+              </th>
+              <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Créé par
+              </th>
+              <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Polygraphe
               </th>
             </tr>
           </thead>
@@ -453,16 +453,6 @@ export default function DiagnosticTable() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {diagnostic.polygraph}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-900">
-                      {diagnostic.createdBy?.name || '-'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex flex-col space-y-1">
                       <div className="text-sm font-bold text-slate-900">
                         {formatIAHValue(diagnostic.iahResult)}
@@ -480,6 +470,16 @@ export default function DiagnosticTable() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-slate-900">
                       {formatIAHValue(diagnostic.idResult)}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-slate-900">
+                      {diagnostic.createdBy?.name}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-slate-900">
+                      {diagnostic.polygraph}
                     </div>
                   </td>
                 </tr>
