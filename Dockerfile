@@ -7,8 +7,6 @@ WORKDIR /app
 RUN apk add --no-cache build-base gcc autoconf automake libtool nasm vips-dev python3 make g++
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
-# Set environment variable to ignore Prisma checksum errors
-ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 RUN npm install --legacy-peer-deps
 
 
@@ -29,8 +27,6 @@ ENV NEXT_RUNTIME=nodejs
 # Increase build timeout
 ENV NEXT_STATIC_PAGE_GENERATION_TIMEOUT=180
 # Completely disable static generation
-# Set environment variable to ignore Prisma checksum errors in offline/restricted environments
-ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 RUN npx prisma generate --schema=./prisma/schema.prisma
 # Build with no static generation
 RUN npm run build
