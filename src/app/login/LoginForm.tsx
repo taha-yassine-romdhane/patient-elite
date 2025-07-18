@@ -46,10 +46,6 @@ export default function LoginForm() {
         name: data.user.name,
         role: data.user.role
       }));
-      
-      // Also set a cookie for the middleware (server-side)
-      // This is needed because middleware can't access localStorage
-      document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Strict`;
 
       // Redirect based on role
       if (data.role === "ADMIN") {

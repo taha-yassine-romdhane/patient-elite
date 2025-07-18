@@ -4,9 +4,9 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(request: Request) {
   try {
-    // Get token from cookies
-    const token = request.headers.get('cookie')?.split('; ')
-      .find(row => row.startsWith('token='))?.split('=')[1];
+    // Get token from Authorization header
+    const authHeader = request.headers.get('Authorization');
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
     if (!token) {
       return NextResponse.json(
