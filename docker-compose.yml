@@ -8,7 +8,8 @@ services:
       - "3002:3002"  # This is ignored but kept for docs
     environment:
       - DATABASE_URL=postgres://postgres:admin@localhost:5432/elite_patient
-      - NEXT_PUBLIC_API_URL=http://localhost:3002
+      - NEXT_PUBLIC_APP_URL=https://patient-elite.elitemedicaleservices.tn
+      - NODE_ENV=production
     env_file:
       - .env
     restart: unless-stopped
