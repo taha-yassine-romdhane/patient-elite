@@ -28,15 +28,27 @@ export default function LoginForm() {
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.message || "Une erreur est survenue lors de la connexion");
+        // Try to get error message from response
+        let errorMessage = "Une erreur est survenue lors de la connexion";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // If we can't parse JSON, use status text
+          errorMessage = `Erreur ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
+
+      const data = await response.json();
       
       // Store token and user info in localStorage
       localStorage.setItem('token', data.token);
@@ -59,7 +71,20 @@ export default function LoginForm() {
       }
     } catch (err: unknown) {
       const error = err as Error;
-      setError(error.message || "Une erreur est survenue lors de la connexion");
+      console.error('Login error:', error);
+      
+      // Provide more specific error messages for common issues
+      let errorMessage = error.message;
+      
+      if (error.message.includes('Failed to fetch')) {
+        errorMessage = "Impossible de se connecter au serveur. Vérifiez votre connexion internet et réessayez.";
+      } else if (error.message.includes('NetworkError')) {
+        errorMessage = "Erreur réseau. Vérifiez votre connexion et réessayez.";
+      } else if (error.message.includes('CORS')) {
+        errorMessage = "Erreur de configuration du serveur. Contactez l'administrateur.";
+      }
+      
+      setError(errorMessage || "Une erreur est survenue lors de la connexion");
     } finally {
       setIsLoading(false);
     }

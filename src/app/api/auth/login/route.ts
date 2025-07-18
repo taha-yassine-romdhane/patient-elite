@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { handleCorsOptions, createCorsResponse } from '@/lib/cors';
+
+// Handle preflight OPTIONS request
+export async function OPTIONS() {
+  return handleCorsOptions();
+}
 
 export async function POST(request: Request) {
   try {
@@ -9,7 +15,7 @@ export async function POST(request: Request) {
     const { email, password } = body;
 
     if (!email || !password) {
-      return NextResponse.json(
+      return createCorsResponse(
         { message: 'Email et mot de passe requis' },
         { status: 400 }
       );
@@ -21,7 +27,7 @@ export async function POST(request: Request) {
     });
 
     if (!technician) {
-      return NextResponse.json(
+      return createCorsResponse(
         { message: 'Email ou mot de passe incorrect' },
         { status: 401 }
       );
@@ -31,7 +37,7 @@ export async function POST(request: Request) {
     const passwordMatch = await bcrypt.compare(password, technician.password);
 
     if (!passwordMatch) {
-      return NextResponse.json(
+      return createCorsResponse(
         { message: 'Email ou mot de passe incorrect' },
         { status: 401 }
       );
@@ -50,25 +56,20 @@ export async function POST(request: Request) {
     );
 
     // Return token in response body instead of setting a cookie
-    const response = NextResponse.json(
-      {
-        message: 'Connexion réussie',
-        user: {
-          id: technician.id,
-          email: technician.email,
-          name: technician.name,
-          role: technician.role,
-        },
+    return createCorsResponse({
+      message: 'Connexion réussie',
+      user: {
+        id: technician.id,
+        email: technician.email,
+        name: technician.name,
         role: technician.role,
-        token: token, // Include token in response body
       },
-      { status: 200 }
-    );
-
-    return response;
+      role: technician.role,
+      token: token, // Include token in response body
+    });
   } catch (error) {
     console.error('Login error:', error);
-    return NextResponse.json(
+    return createCorsResponse(
       { message: 'Une erreur est survenue lors de la connexion' },
       { status: 500 }
     );
