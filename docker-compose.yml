@@ -3,12 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    network_mode: "host"
     ports:
-      - "3002:3002"  # This is ignored but kept for docs
+      - "3002:3002"
     environment:
       - DATABASE_URL=postgres://postgres:admin@localhost:5432/elite_patient
-      - NEXT_PUBLIC_API_URL=http://localhost:3002
+      - HOSTNAME=0.0.0.0
     env_file:
       - .env
     restart: unless-stopped
