@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import { createSession } from '@/lib/sessionAuth';
 
 export async function POST(request: Request) {
   try {
@@ -37,20 +37,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create JWT token
-    const token = jwt.sign(
-      {
-        id: technician.id,
-        email: technician.email,
-        role: technician.role,
-        name: technician.name,
-      },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '1d' }
-    );
+    // Get request metadata for session tracking
+    const userAgent = request.headers.get('user-agent') || undefined;
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ipAddress = forwarded ? forwarded.split(',')[0] : request.headers.get('x-real-ip') || undefined;
 
-    // Return token in response body instead of setting a cookie
-    const response = NextResponse.json(
+    // Create session in database
+    const sessionToken = await createSession(technician.id, userAgent, ipAddress);
+
+    // Return session token and user data
+    return NextResponse.json(
       {
         message: 'Connexion réussie',
         user: {
@@ -60,12 +56,10 @@ export async function POST(request: Request) {
           role: technician.role,
         },
         role: technician.role,
-        token: token, // Include token in response body
+        token: sessionToken, // Session token from database
       },
       { status: 200 }
     );
-
-    return response;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(

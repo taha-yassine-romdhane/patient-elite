@@ -1,26 +1,64 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
+import { validateSession } from '@/lib/sessionAuth';
 
 export async function middleware(request: NextRequest) {
-  // Get token from Authorization header (sent by fetchWithAuth)
-  const authHeader = request.headers.get('Authorization');
-  const token = authHeader ? authHeader.replace('Bearer ', '') : null;
   const { pathname } = request.nextUrl;
 
-  // Paths that don't require authentication
-  if (pathname === '/login' || pathname.startsWith('/api/auth/login') || pathname.startsWith('/api/auth/signup')) {
+  // Skip middleware for API routes, static files, and public pages
+  if (
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/favicon.ico') ||
+    pathname === '/login' ||
+    pathname === '/'
+  ) {
     return NextResponse.next();
   }
 
-  // For API routes, let them handle their own authentication
-  if (pathname.startsWith('/api/')) {
-    return NextResponse.next();
-  }
+  try {
+    // Get token from Authorization header or cookie
+    const authHeader = request.headers.get('authorization');
+    let token = authHeader?.replace('Bearer ', '');
+    
+    // If no auth header, try to get from cookie
+    if (!token) {
+      token = request.cookies.get('auth-token')?.value;
+    }
 
-  // For page routes, we can't verify localStorage server-side
-  // So we'll let the client-side handle authentication redirects
-  return NextResponse.next();
+    if (!token) {
+      console.log('No token found, redirecting to login');
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+
+    // Validate session from database
+    const session = await validateSession(token);
+
+    if (!session) {
+      console.log('Invalid or expired session, redirecting to login');
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+
+    // Role-based access control
+    const userRole = session.user.role;
+    
+    // Admin routes
+    if (pathname.startsWith('/admin/') && userRole !== 'ADMIN') {
+      console.log('Access denied: Admin route for non-admin user');
+      return NextResponse.redirect(new URL('/employee/dashboard', request.url));
+    }
+    
+    // Employee routes
+    if (pathname.startsWith('/employee/') && userRole !== 'EMPLOYEE') {
+      console.log('Access denied: Employee route for non-employee user');
+      return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    }
+
+    return NextResponse.next();
+  } catch (error) {
+    console.error('Middleware authentication error:', error);
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
 }
 
 export const config = {

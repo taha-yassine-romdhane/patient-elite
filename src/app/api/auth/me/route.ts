@@ -1,55 +1,42 @@
 import { NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
+import { validateSession } from '@/lib/sessionAuth';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(request: Request) {
   try {
     // Get token from Authorization header
-    const authHeader = request.headers.get('Authorization');
-    const token = authHeader ? authHeader.replace('Bearer ', '') : null;
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.replace('Bearer ', '');
 
     if (!token) {
       return NextResponse.json(
-        { message: 'Non authentifié' },
+        { message: 'Token manquant' },
         { status: 401 }
       );
     }
 
-    // Verify token
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
-    const { payload } = await jwtVerify(token, secret);
+    // Validate session from database
+    const session = await validateSession(token);
     
-    if (!payload.id) {
+    if (!session) {
       return NextResponse.json(
-        { message: 'Token invalide' },
+        { message: 'Session invalide ou expirée' },
         { status: 401 }
       );
     }
 
-    // Get user data from database
-    const technician = await prisma.technician.findUnique({
-      where: { id: payload.id as string },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
+    return NextResponse.json({
+      user: {
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
+        role: session.user.role,
       },
     });
-
-    if (!technician) {
-      return NextResponse.json(
-        { message: 'Utilisateur non trouvé' },
-        { status: 404 }
-      );
-    }
-
-    // Return user data
-    return NextResponse.json(technician);
   } catch (error) {
-    console.error('Error fetching user data:', error);
+    console.error('Error getting current user:', error);
     return NextResponse.json(
-      { message: 'Erreur lors de la récupération des données utilisateur' },
+      { message: 'Erreur serveur' },
       { status: 500 }
     );
   }
