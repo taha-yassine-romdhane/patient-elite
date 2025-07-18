@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { fetchWithAuth } from "@/lib/apiClient";
+import { fetchWithAuth } from '@/lib/apiClient';
+import PatientForm from "@/components/PatientForm";
+import { Technician } from "@prisma/client";
 
 type Patient = {
   id: string;
@@ -24,44 +26,70 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [isCreatingPatient, setIsCreatingPatient] = useState(false);
 
   useEffect(() => {
-    // Fetch patients when component mounts
-    const fetchPatients = async () => {
+    // Fetch patients and technicians when component mounts
+    const fetchData = async () => {
       setIsLoading(true);
+      setError("");
+      
       try {
-        const response = await fetchWithAuth("/api/admin/patients");
-        if (!response.ok) {
-          throw new Error("Erreur lors de la récupération des patients");
+        // Fetch patients
+        const patientsResponse = await fetchWithAuth('/api/admin/patients');
+        if (!patientsResponse.ok) {
+          throw new Error('Failed to fetch patients');
         }
-        const data = await response.json();
-        setPatients(data);
-        setFilteredPatients(data);
+        const patientsData = await patientsResponse.json();
+        setPatients(patientsData || []);
+        setFilteredPatients(patientsData || []);
+        
+        // Fetch technicians for patient creation form
+        const techniciansResponse = await fetchWithAuth('/api/technicians');
+        if (techniciansResponse.ok) {
+          const techniciansData = await techniciansResponse.json();
+          setTechnicians(techniciansData || []);
+        }
       } catch (err) {
-        setError("Erreur lors du chargement des patients");
-        console.error(err);
+        console.error('Error fetching data:', err);
+        setError('Erreur lors du chargement des données');
       } finally {
         setIsLoading(false);
       }
     };
-
-    fetchPatients();
+    
+    fetchData();
   }, []);
 
   useEffect(() => {
-    // Filter patients based on search term
-    if (searchTerm.trim() === "") {
-      setFilteredPatients(patients);
-    } else {
-      const filtered = patients.filter(
-        (patient) =>
-          patient.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          patient.phone.includes(searchTerm) ||
-          patient.region.toLowerCase().includes(searchTerm.toLowerCase())
+    if (searchTerm) {
+      const filtered = patients.filter(patient =>
+        patient.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        patient.phone.includes(searchTerm) ||
+        patient.region.toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredPatients(filtered);
+    } else {
+      setFilteredPatients(patients);
     }
   }, [searchTerm, patients]);
+
+  const handlePatientCreated = async (result: any) => {
+    if (result.success && result.patient) {
+      // Add the new patient to the list
+      const newPatient = result.patient;
+      setPatients(prev => [...prev, newPatient]);
+      setFilteredPatients(prev => [...prev, newPatient]);
+      
+      // Close the modal
+      setShowCreateModal(false);
+      
+      // Automatically select the newly created patient
+      onPatientSelect(newPatient);
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
@@ -86,15 +114,15 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Link
-            href="/patients/new"
+          <button
+            onClick={() => setShowCreateModal(true)}
             className="bg-emerald-600 text-white px-8 py-4 rounded-xl hover:bg-emerald-700 transition-all duration-200 font-medium shadow-sm flex items-center whitespace-nowrap"
           >
             <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
             Nouveau patient
-          </Link>
+          </button>
         </div>
         
         {isLoading ? (
@@ -135,7 +163,7 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
               {searchTerm ? "Aucun patient ne correspond à votre recherche" : "Aucun patient enregistré dans le système"}
             </p>
             <Link
-              href="/patients/new"
+              href="/admin/patients/new"
               className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium inline-block"
             >
               Ajouter un nouveau patient
@@ -224,6 +252,34 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
           </div>
         )}
       </div>
+      
+      {/* Patient Creation Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-slate-800">Créer un nouveau patient</h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6">
+              <PatientForm 
+                technicians={technicians} 
+                context="sales"
+                onSubmit={handlePatientCreated}
+                onCancel={() => setShowCreateModal(false)}
+                isLoading={isCreatingPatient}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

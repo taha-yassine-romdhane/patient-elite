@@ -16,7 +16,7 @@ datasource db {
 
 model Patient {
   id              String       @id @default(cuid())
-  date            DateTime
+  date            DateTime?
   fullName        String
   phone           String
   cin             String?      // Carte d'identité nationale
@@ -127,6 +127,11 @@ model Payment {
   traiteDueDate     DateTime?
   cnamStatus        String?          // "ATTENTE" or "ACCORD"
   cnamFollowupDate  DateTime?
+  // Cash payment specific fields
+  cashTotal         Float?           // Total amount for cash payments
+  cashAcompte       Float?           // Down payment amount
+  cashRest          Float?           // Remaining amount to be paid
+  cashRestDate      DateTime?        // When the rest is due
   notes             String?
   // Relations
   sale              Sale?            @relation(fields: [saleId], references: [id])

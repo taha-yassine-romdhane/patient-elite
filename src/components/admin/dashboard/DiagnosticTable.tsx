@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { calculateIAHSeverity, formatIAHValue } from "@/utils/diagnosticUtils";
+import { fetchWithAuth } from "@/lib/apiClient";
 
 // Format date function
 const formatDate = (dateString: string): string => {
@@ -35,6 +36,16 @@ type Diagnostic = {
     region?: string;
     address?: string;
     doctorName?: string;
+    technician?: {
+      id: string;
+      name: string;
+      email: string;
+    };
+    supervisor?: {
+      id: string;
+      name: string;
+      email: string;
+    };
   };
   createdBy?: {
     id: string;
@@ -53,6 +64,10 @@ export default function DiagnosticTable() {
   const [searchTerm, setSearchTerm] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [polygraphFilter, setPolygraphFilter] = useState<string>("all");
+  const [doctorFilter, setDoctorFilter] = useState<string>("all");
+  const [regionFilter, setRegionFilter] = useState<string>("all");
+  const [technicianFilter, setTechnicianFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,7 +77,7 @@ export default function DiagnosticTable() {
     const fetchDiagnostics = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch("/api/diagnostics");
+        const response = await fetchWithAuth("/api/diagnostics");
         if (!response.ok) {
           throw new Error("Erreur lors de la récupération des diagnostics");
         }
@@ -78,6 +93,28 @@ export default function DiagnosticTable() {
 
     fetchDiagnostics();
   }, []);
+
+  // Helper functions to get unique values for filters
+  const getUniqueValues = (key: string): string[] => {
+    const values = diagnostics.map(diagnostic => {
+      switch (key) {
+        case 'doctor':
+          return diagnostic.patient.doctorName;
+        case 'region':
+          return diagnostic.patient.region;
+        case 'technician':
+          return diagnostic.patient.technician?.name;
+        default:
+          return null;
+      }
+    }).filter((value): value is string => Boolean(value));
+    return [...new Set(values)];
+  };
+
+  const uniqueDoctors = getUniqueValues('doctor');
+  const uniqueRegions = getUniqueValues('region');
+  const uniqueTechnicians = getUniqueValues('technician');
+  const uniquePolygraphs = [...new Set(diagnostics.map(d => d.polygraph))];
 
   // Filter and search diagnostics
   useEffect(() => {
@@ -96,6 +133,50 @@ export default function DiagnosticTable() {
       );
     }
 
+    // Apply doctor filter
+    if (doctorFilter !== "all") {
+      filtered = filtered.filter(diagnostic => diagnostic.patient.doctorName === doctorFilter);
+    }
+
+    // Apply region filter
+    if (regionFilter !== "all") {
+      filtered = filtered.filter(diagnostic => diagnostic.patient.region === regionFilter);
+    }
+
+    // Apply technician filter
+    if (technicianFilter !== "all") {
+      filtered = filtered.filter(diagnostic => diagnostic.patient.technician?.name === technicianFilter);
+    }
+
+    // Apply date filter
+    if (dateFilter !== "all") {
+      const today = new Date();
+      const filterDate = new Date();
+      
+      switch (dateFilter) {
+        case "today":
+          filterDate.setHours(0, 0, 0, 0);
+          filtered = filtered.filter(diagnostic => {
+            const diagDate = new Date(diagnostic.date);
+            diagDate.setHours(0, 0, 0, 0);
+            return diagDate.getTime() === filterDate.getTime();
+          });
+          break;
+        case "week":
+          filterDate.setDate(today.getDate() - 7);
+          filtered = filtered.filter(diagnostic => new Date(diagnostic.date) >= filterDate);
+          break;
+        case "month":
+          filterDate.setMonth(today.getMonth() - 1);
+          filtered = filtered.filter(diagnostic => new Date(diagnostic.date) >= filterDate);
+          break;
+        case "year":
+          filterDate.setFullYear(today.getFullYear() - 1);
+          filtered = filtered.filter(diagnostic => new Date(diagnostic.date) >= filterDate);
+          break;
+      }
+    }
+
     // Apply severity filter
     if (severityFilter !== "all") {
       filtered = filtered.filter(diagnostic => {
@@ -109,40 +190,9 @@ export default function DiagnosticTable() {
       filtered = filtered.filter(diagnostic => diagnostic.polygraph === polygraphFilter);
     }
 
-    // Apply sorting
-    filtered.sort((a, b) => {
-      let aValue: string | number | Date, bValue: string | number | Date;
-      
-      switch (sortBy) {
-        case "patient":
-          aValue = a.patient.fullName;
-          bValue = b.patient.fullName;
-          break;
-        case "iah":
-          aValue = a.iahResult;
-          bValue = b.iahResult;
-          break;
-        case "id":
-          aValue = a.idResult;
-          bValue = b.idResult;
-          break;
-        case "date":
-        default:
-          aValue = new Date(a.date);
-          bValue = new Date(b.date);
-          break;
-      }
-
-      if (sortOrder === "asc") {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-
     setFilteredDiagnostics(filtered);
     setCurrentPage(1); // Reset to first page when filtering
-  }, [diagnostics, searchTerm, severityFilter, polygraphFilter, sortBy, sortOrder]);
+  }, [diagnostics, searchTerm, doctorFilter, regionFilter, technicianFilter, dateFilter, severityFilter, polygraphFilter, sortBy, sortOrder]);
 
   // Pagination
   const totalPages = Math.ceil(filteredDiagnostics.length / itemsPerPage);
@@ -223,7 +273,7 @@ export default function DiagnosticTable() {
           <h4 className="text-xl font-semibold text-slate-800 mb-2">Aucun diagnostic trouvé</h4>
           <p className="text-slate-600 mb-6">Commencez par créer votre premier diagnostic</p>
           <Link 
-            href="/employee/diagnostics" 
+            href="/admin/diagnostics" 
             className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-sm hover:shadow-md"
           >
             <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -248,7 +298,7 @@ export default function DiagnosticTable() {
               {filteredDiagnostics.length} diagnostic(s) trouvé(s)
             </div>
             <Link
-              href="/employee/diagnostics"
+              href="/admin/patients"
               className="text-indigo-100 hover:text-white transition-colors text-sm font-medium"
             >
               Voir tous
@@ -259,9 +309,9 @@ export default function DiagnosticTable() {
 
       {/* Search and Filters */}
       <div className="p-6 border-b border-slate-200 bg-slate-50">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search bar */}
-          <div className="flex-1 relative">
+        <div className="flex flex-col gap-4">
+          {/* Search bar - moved to top */}
+          <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <svg className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -270,18 +320,74 @@ export default function DiagnosticTable() {
             <input
               type="text"
               placeholder="Rechercher par patient, téléphone, région, adresse, docteur, ID, polygraphe..."
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3">
+          {/* Filters - organized in rows */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            {/* Doctor Filter */}
+            <select
+              value={doctorFilter}
+              onChange={(e) => setDoctorFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-sm"
+            >
+              <option value="all">Tous les médecins</option>
+              {uniqueDoctors.map((doctor) => (
+                <option key={doctor} value={doctor}>
+                  Dr. {doctor}
+                </option>
+              ))}
+            </select>
+
+            {/* Region Filter */}
+            <select
+              value={regionFilter}
+              onChange={(e) => setRegionFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-sm"
+            >
+              <option value="all">Toutes les régions</option>
+              {uniqueRegions.map((region) => (
+                <option key={region} value={region}>
+                  {region}
+                </option>
+              ))}
+            </select>
+
+            {/* Technician Filter */}
+            <select
+              value={technicianFilter}
+              onChange={(e) => setTechnicianFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-sm"
+            >
+              <option value="all">Tous les techniciens</option>
+              {uniqueTechnicians.map((technician) => (
+                <option key={technician} value={technician}>
+                  {technician}
+                </option>
+              ))}
+            </select>
+
+            {/* Date Filter */}
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-sm"
+            >
+              <option value="all">Toutes les dates</option>
+              <option value="today">Aujourd'hui</option>
+              <option value="week">Cette semaine</option>
+              <option value="month">Ce mois</option>
+              <option value="year">Cette année</option>
+            </select>
+
+            {/* Severity Filter */}
             <select
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-sm"
             >
               <option value="all">Toutes les sévérités</option>
               <option value="negative">Négatif</option>
@@ -289,35 +395,22 @@ export default function DiagnosticTable() {
               <option value="severe">Sévère</option>
             </select>
 
+            {/* Polygraph Filter */}
             <select
               value={polygraphFilter}
               onChange={(e) => setPolygraphFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-sm"
             >
               <option value="all">Tous les polygraphes</option>
-              <option value="NOX">NOX</option>
-              <option value="PORTI">PORTI</option>
-            </select>
-
-            <select
-              value={`${sortBy}-${sortOrder}`}
-              onChange={(e) => {
-                const [field, order] = e.target.value.split('-');
-                setSortBy(field);
-                setSortOrder(order as "asc" | "desc");
-              }}
-              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-            >
-              <option value="date-desc">Date (Plus récent)</option>
-              <option value="date-asc">Date (Plus ancien)</option>
-              <option value="patient-asc">Patient (A-Z)</option>
-              <option value="patient-desc">Patient (Z-A)</option>
-              <option value="iah-desc">IAH (Plus élevé)</option>
-              <option value="iah-asc">IAH (Plus bas)</option>
-              <option value="id-desc">ID (Plus élevé)</option>
-              <option value="id-asc">ID (Plus bas)</option>
+              {uniquePolygraphs.map((polygraph) => (
+                <option key={polygraph} value={polygraph}>
+                  {polygraph}
+                </option>
+              ))}
             </select>
           </div>
+
+       
         </div>
 
         {/* Severity Statistics */}
@@ -404,7 +497,10 @@ export default function DiagnosticTable() {
                 </div>
               </th>
               <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Créé par
+                Technicien
+              </th>
+              <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Superviseur
               </th>
               <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Polygraphe
@@ -417,8 +513,7 @@ export default function DiagnosticTable() {
               return (
                 <tr 
                   key={diagnostic.id} 
-                  className={`hover:bg-slate-50 transition-colors duration-150 cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-slate-25'}`}
-                  onClick={() => window.location.href = `/employee/patients/${diagnostic.patient.id}`}
+                  className={`hover:bg-slate-50 transition-colors duration-150 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-25'}`}
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -451,6 +546,9 @@ export default function DiagnosticTable() {
                     <div className="text-sm text-slate-900">
                       {diagnostic.patient.address || '-'}
                     </div>
+                    <div className="px-4 py-2 whitespace-nowrap">
+                      {diagnostic.patient.region || '-'}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex flex-col space-y-1">
@@ -473,8 +571,13 @@ export default function DiagnosticTable() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-slate-900">
-                      {diagnostic.createdBy?.name}
+                    <div className="text-sm text-slate-900">
+                      {diagnostic.patient.technician ? diagnostic.patient.technician.name : '-'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-slate-900">
+                      {diagnostic.patient.supervisor ? diagnostic.patient.supervisor.name : '-'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -490,8 +593,7 @@ export default function DiagnosticTable() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="bg-slate-50 px-6 py-4 border-t border-slate-200">
+      <div className="bg-slate-50 px-6 py-4 border-t border-slate-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center text-sm text-slate-600">
               <span>
@@ -531,7 +633,6 @@ export default function DiagnosticTable() {
             </div>
           </div>
         </div>
-      )}
     </div>
   );
 }

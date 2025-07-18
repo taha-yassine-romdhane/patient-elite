@@ -42,7 +42,7 @@ export default function ConfirmationStep({ onNewRental }: ConfirmationStepProps)
         <button
           type="button"
           className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-          onClick={() => router.push("/employee/dashboard")}
+          onClick={() => router.push("/admin/dashboard")}
         >
           Retour au tableau de bord
         </button>

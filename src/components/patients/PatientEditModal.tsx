@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Technician, Patient, Affiliation, Beneficiary } from "@prisma/client";
+import { Technician, Affiliation, Beneficiary } from "@prisma/client";
+import { Patient } from "@/types/patient";
 import Modal from "@/components/ui/Modal";
 import PatientForm, { PatientFormData } from "@/components/PatientForm";
 import { parseAddress, formatAddress } from "@/utils/addressParser";
@@ -28,7 +29,7 @@ export default function PatientEditModal({
   
   // Use addressDetails from database if available, otherwise parse from address
   const addressDetails = patient.addressDetails || "";
-  const { delegation } = parseAddress(patient.address, patient.region);
+  const { delegation } = parseAddress(patient.address || "", patient.region);
   
   // Transform patient data from Prisma model to form data shape
   const initialDataForForm: PatientFormData = {
@@ -36,10 +37,10 @@ export default function PatientEditModal({
     phone: patient.phone,
     cin: patient.cin ?? undefined,
     date: patient.date ? new Date(patient.date).toISOString().split('T')[0] : undefined,
-    hasCnam: patient.hasCnam,
+    hasCnam: patient.hasCnam ?? false,
     cnamId: patient.cnamId ?? undefined,
-    affiliation: patient.affiliation ?? Affiliation.CNSS,
-    beneficiary: patient.beneficiary ?? Beneficiary.SOCIAL_INSURED,
+    affiliation: (patient.affiliation as Affiliation) ?? Affiliation.CNSS,
+    beneficiary: (patient.beneficiary as Beneficiary) ?? Beneficiary.SOCIAL_INSURED,
     region: patient.region,
     address: delegation,
     addressDetails: addressDetails,

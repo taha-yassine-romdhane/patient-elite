@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { fetchWithAuth } from "@/lib/apiClient";
 
 // Format date function
 const formatDate = (dateString: string): string => {
@@ -146,8 +147,7 @@ export default function RentalsTable() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [returnStatusFilter, setReturnStatusFilter] = useState<string>("all");
+
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [reminderMonthFilter, setReminderMonthFilter] = useState<string>("all");
   const [paymentEndMonthFilter, setPaymentEndMonthFilter] = useState<string>("all");
@@ -161,7 +161,7 @@ export default function RentalsTable() {
     const fetchRentals = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch("/api/rentals");
+        const response = await fetchWithAuth("/api/rentals");
         if (!response.ok) {
           throw new Error("Erreur lors de la récupération des locations");
         }
@@ -450,15 +450,7 @@ export default function RentalsTable() {
       );
     }
 
-    // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(rental => rental.status === statusFilter);
-    }
 
-    // Apply return status filter
-    if (returnStatusFilter !== "all") {
-      filtered = filtered.filter(rental => rental.returnStatus === returnStatusFilter);
-    }
 
     // Apply payment status filter
     if (paymentStatusFilter !== "all") {
@@ -529,7 +521,7 @@ export default function RentalsTable() {
 
     setFilteredRentals(filtered);
     setCurrentPage(1);
-  }, [rentals, searchTerm, statusFilter, returnStatusFilter, paymentStatusFilter, reminderMonthFilter, paymentEndMonthFilter, rentalEndMonthFilter, sortBy, sortOrder, getDevicesWithPaymentStatus]);
+  }, [rentals, searchTerm, paymentStatusFilter, reminderMonthFilter, paymentEndMonthFilter, rentalEndMonthFilter, sortBy, sortOrder, getDevicesWithPaymentStatus]);
 
   // Pagination
   const totalPages = Math.ceil(filteredRentals.length / itemsPerPage);
@@ -629,7 +621,7 @@ export default function RentalsTable() {
           <h4 className="text-xl font-semibold text-slate-800 mb-2">Aucune location trouvée</h4>
           <p className="text-slate-600 mb-6">Commencez par créer votre première location</p>
           <Link 
-            href="/employee/rentals" 
+            href="/admin/rentals" 
             className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md"
           >
             <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -654,7 +646,7 @@ export default function RentalsTable() {
               {filteredRentals.length} location(s) trouvée(s)
             </div>
             <Link
-              href="/employee/rentals"
+              href="/admin/rentals"
               className="text-purple-100 hover:text-white transition-colors text-sm font-medium"
             >
               Nouvelle location
@@ -684,28 +676,9 @@ export default function RentalsTable() {
 
           {/* Filters */}
           <div className="flex flex-wrap gap-3">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
-            >
-              <option value="all">Tous les statuts</option>
-              <option value="PENDING">En attente</option>
-              <option value="COMPLETED">Complété</option>
-              <option value="CANCELLED">Annulé</option>
-            </select>
+    
 
-            <select
-              value={returnStatusFilter}
-              onChange={(e) => setReturnStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
-            >
-              <option value="all">Statut retour</option>
-              <option value="RETURNED">Retourné</option>
-              <option value="NOT_RETURNED">Non retourné</option>
-              <option value="PARTIALLY_RETURNED">Retour partiel</option>
-              <option value="DAMAGED">Endommagé</option>
-            </select>
+
 
             <select
               value={paymentStatusFilter}
@@ -853,9 +826,7 @@ export default function RentalsTable() {
               <th scope="col" className="px-4 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Superviseur
               </th>
-              <th scope="col" className="px-4 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Créé par
-              </th>
+
               <th scope="col" className="px-4 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Appareils & Paiements
               </th>
@@ -873,9 +844,7 @@ export default function RentalsTable() {
                   )}
                 </div>
               </th>
-              <th scope="col" className="px-4 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Statut
-              </th>
+
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-100">
@@ -886,7 +855,7 @@ export default function RentalsTable() {
                 <tr 
                   key={rental.id} 
                   className={`hover:bg-slate-50 transition-colors duration-150 cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-slate-25'}`}
-                  onClick={() => window.location.href = `/employee/patients/${rental.patient.id}`}
+                  onClick={() => window.location.href = `/admin/patients/${rental.patient.id}`}
                 >
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -923,14 +892,6 @@ export default function RentalsTable() {
                     </div>
                     <div className="text-xs text-slate-500">
                       {rental.patient.supervisor?.role || ''}
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-900">
-                      {rental.createdBy?.name || '-'}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {rental.createdBy?.email || ''}
                     </div>
                   </td>
                   <td className="px-4 py-4">
@@ -1124,31 +1085,7 @@ export default function RentalsTable() {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <div className="space-y-1">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        rental.status === 'COMPLETED' ? 'bg-green-100 text-green-800' : 
-                        rental.status === 'CANCELLED' ? 'bg-red-100 text-red-800' : 
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {rental.status === 'COMPLETED' ? 'Complété' : 
-                         rental.status === 'CANCELLED' ? 'Annulé' : 'En attente'}
-                      </span>
-                      <div>
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          rental.returnStatus === 'RETURNED' ? 'bg-green-100 text-green-800' :
-                          rental.returnStatus === 'NOT_RETURNED' ? 'bg-yellow-100 text-yellow-800' :
-                          rental.returnStatus === 'PARTIALLY_RETURNED' ? 'bg-blue-100 text-blue-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {rental.returnStatus === 'RETURNED' ? 'Retourné' :
-                           rental.returnStatus === 'NOT_RETURNED' ? 'Non retourné' :
-                           rental.returnStatus === 'PARTIALLY_RETURNED' ? 'Retour partiel' :
-                           'Endommagé'}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
+
                 </tr>
               );
             })}

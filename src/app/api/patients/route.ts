@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/lib/auth';
 export async function GET(request: Request) {
   try {
     // Get current user for filtering
-    const currentUser = await getCurrentUser(request);
+    const currentUser = await getCurrentUser();
     
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
@@ -130,7 +130,7 @@ export async function PUT(request: Request) {
 export async function POST(request: Request) {
   try {
     // Get current user for creator tracking
-    const currentUser = await getCurrentUser(request);
+    const currentUser = await getCurrentUser();
     
     // Get the patient data from the request body
     const patientData = await request.json();
@@ -156,9 +156,9 @@ export async function POST(request: Request) {
       cnamId: patientData.hasCnam ? patientData.cnamId : null,
       affiliation: patientData.hasCnam ? patientData.affiliation : null,
       beneficiary: patientData.hasCnam ? patientData.beneficiary : null,
-      technician: patientData.technicianId ? { connect: { id: patientData.technicianId } } : undefined,
-      supervisor: patientData.supervisorId ? { connect: { id: patientData.supervisorId } } : undefined,
-      createdBy: currentUser ? { connect: { id: currentUser.id } } : undefined,
+      technicianId: patientData.technicianId || null,
+      supervisorId: patientData.supervisorId || null,
+      createdById: currentUser ? currentUser.id : null,
     };
 
     // Create the new patient

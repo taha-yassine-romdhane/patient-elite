@@ -1,4 +1,5 @@
 import { jwtVerify } from 'jose';
+import { headers } from 'next/headers';
 
 export interface AuthUser {
   id: string;
@@ -7,10 +8,11 @@ export interface AuthUser {
   role: string;
 }
 
-export async function getCurrentUser(request: Request): Promise<AuthUser | null> {
+export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
     // Get token from Authorization header instead of cookies
-    const authHeader = request.headers.get('Authorization');
+    const headersList = await headers();
+    const authHeader = headersList.get('Authorization');
     const token = authHeader ? authHeader.replace('Bearer ', '') : null;
     
     if (!token) {

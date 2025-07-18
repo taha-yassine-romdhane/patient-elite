@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/lib/auth';
 export async function POST(request: Request) {
   try {
     // Get current user for creator tracking
-    const currentUser = await getCurrentUser(request);
+    const currentUser = await getCurrentUser();
     
     const body = await request.json();
     const { patientId, date, polygraph, iahResult, idResult, remarks } = body;
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     // Get current user for filtering
-    const currentUser = await getCurrentUser(request);
+    const currentUser = await getCurrentUser();
     
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get('patientId');
@@ -95,6 +95,20 @@ export async function GET(request: Request) {
             region: true,
             address: true,
             doctorName: true,
+            technician: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            },
+            supervisor: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
           },
         },
         createdBy: {

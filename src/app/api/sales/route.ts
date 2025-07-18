@@ -23,8 +23,20 @@ type PaymentData = {
   method: SALETYPE;
   amount: number;
   paymentDate?: string;
+  // Cash payment fields
+  cashTotal?: number;
+  cashAcompte?: number;
+  cashRest?: number;
+  cashRestDate?: string;
+  // CNAM payment fields
+  cnamStatus?: "ATTENTE" | "ACCORD";
+  cnamFollowupDate?: string;
+  // Traite payment fields
+  traiteDate?: string;
+  // Cheque payment fields
   chequeNumber?: string;
   chequeDate?: string;
+  // Legacy field for backward compatibility
   traiteDueDate?: string;
   notes?: string;
 };
@@ -44,7 +56,7 @@ type SaleRequestData = {
 export async function POST(request: Request) {
   try {
     // Get current user for creator tracking
-    const currentUser = await getCurrentUser(request);
+    const currentUser = await getCurrentUser();
     
     const body = await request.json() as SaleRequestData;
     const { patientId, date, amount, status, notes, devices, accessories, payments } = body;
@@ -117,9 +129,25 @@ export async function POST(request: Request) {
             amount: payment.amount,
             type: payment.method,
             paymentDate: payment.paymentDate ? new Date(payment.paymentDate) : null,
+            // Cash payment fields
+            cashTotal: payment.cashTotal,
+            cashAcompte: payment.cashAcompte,
+            cashRest: payment.cashRest,
+            cashRestDate: payment.cashRestDate ? new Date(payment.cashRestDate) : null,
+            // CNAM payment fields
+            cnamStatus: payment.cnamStatus,
+            cnamFollowupDate: payment.cnamFollowupDate ? new Date(payment.cnamFollowupDate) : null,
+            // Traite payment fields - use traiteDate if provided, otherwise fall back to traiteDueDate
+            traiteDueDate: payment.traiteDate ? new Date(payment.traiteDate) : 
+                          (payment.traiteDueDate ? new Date(payment.traiteDueDate) : null),
+            // Set dueDate based on payment type
+            dueDate: payment.method === 'CASH' && payment.cashRestDate ? new Date(payment.cashRestDate) :
+                    payment.method === 'TRAITE' && payment.traiteDate ? new Date(payment.traiteDate) :
+                    payment.method === 'CNAM' && payment.cnamFollowupDate ? new Date(payment.cnamFollowupDate) :
+                    null,
+            // Cheque payment fields
             chequeNumber: payment.chequeNumber,
             chequeDate: payment.chequeDate ? new Date(payment.chequeDate) : null,
-            traiteDueDate: payment.traiteDueDate ? new Date(payment.traiteDueDate) : null,
             notes: payment.notes
           }))
         }
@@ -132,8 +160,27 @@ export async function POST(request: Request) {
             phone: true,
             region: true,
             address: true,
-            doctorName: true
-          }
+            doctorName: true,
+            diagnostics: {
+              orderBy: {
+                date: 'desc'
+              }
+            },
+            technician: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            },
+            supervisor: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          },
         },
         createdBy: {
           select: {
@@ -165,7 +212,7 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     // Get current user for filtering
-    const currentUser = await getCurrentUser(request);
+    const currentUser = await getCurrentUser();
     
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get('patientId');
@@ -194,6 +241,20 @@ export async function GET(request: Request) {
             diagnostics: {
               orderBy: {
                 date: 'desc'
+              }
+            },
+            technician: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            },
+            supervisor: {
+              select: {
+                id: true,
+                name: true,
+                email: true
               }
             }
           },

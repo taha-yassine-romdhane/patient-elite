@@ -1,14 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { Pencil, FileText, Activity, TrendingUp, Calendar, AlertCircle, CheckCircle, Clock, Trash2 } from "lucide-react";
+import { Activity, AlertCircle } from "lucide-react";
 import { fetchWithAuth } from "@/lib/apiClient";
-import { Technician, Patient } from "@prisma/client";
+import { Technician } from "@prisma/client";
 import PatientForm, { PatientFormData } from "@/components/PatientForm";
 import Modal from "@/components/ui/Modal";
 import PatientEditModal from "@/components/patients/PatientEditModal";
-import { calculateIAHSeverity, formatIAHValue } from "@/utils/diagnosticUtils";
+import PatientFilters from "@/components/patients/PatientFilters";
+import PatientStatsHeader from "@/components/patients/PatientStatsHeader";
+import PatientTable from "@/components/patients/PatientTable";
+import Pagination from "@/components/patients/Pagination";
+import DeleteConfirmationModal from "@/components/patients/DeleteConfirmationModal";
+import { calculateIAHSeverity } from "@/utils/diagnosticUtils";
+import { ExtendedPatient, Patient, ActivityStats } from "@/types/patient";
 
 // Format date function
 const formatDate = (dateString: string): string => {
@@ -27,52 +33,6 @@ const formatDate = (dateString: string): string => {
   }
 };
 
-// Extended patient type with aggregated data
-type ExtendedPatient = Patient & {
-  diagnostics?: {
-    id: number;
-    date: string;
-    polygraph: string;
-    iahResult: number;
-    idResult: number;
-    remarks?: string;
-  }[];
-  sales?: {
-    id: string;
-    date: string;
-    amount: number;
-    status: string;
-    devices: { name: string }[];
-    accessories: { name: string }[];
-    payments: { type: string; amount: number }[];
-  }[];
-  rentals?: {
-    id: string;
-    startDate: string;
-    endDate: string;
-    amount: number;
-    status: string;
-    returnStatus: string;
-    devices: { name: string }[];
-    payments: { type: string; amount: number; periodEndDate?: string }[];
-  }[];
-  latestDiagnostic?: {
-    id: number;
-    date: string;
-    polygraph: string;
-    iahResult: number;
-    idResult: number;
-  };
-  totalSales?: number;
-  activeRentals?: number;
-  overduePayments?: number;
-  lastActivity?: string;
-  createdBy?: {
-    id: string;
-    name: string;
-    email: string;
-  };
-};
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState<ExtendedPatient[]>([]);
@@ -82,6 +42,7 @@ export default function PatientsPage() {
   const [diagnosticFilter, setDiagnosticFilter] = useState<string>("all");
   const [activityFilter, setActivityFilter] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
+  const [doctorFilter, setDoctorFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("lastActivity");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
@@ -93,6 +54,13 @@ export default function PatientsPage() {
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [patientToDelete, setPatientToDelete] = useState<Patient | null>(null);
+
+  const doctors = useMemo(() => {
+    const allDoctors = patients
+      .map(p => p.doctorName)
+      .filter((name): name is string => !!name);
+    return [...new Set(allDoctors)];
+  }, [patients]);
 
   // Get current user's ID if they are a technician
   const currentUserId = "";
@@ -155,11 +123,16 @@ export default function PatientsPage() {
           case "overdue":
             return patient.overduePayments && patient.overduePayments > 0;
           case "current":
-            return patient.activeRentals && patient.activeRentals > 0 && (!patient.overduePayments || patient.overduePayments === 0);
+            return !patient.overduePayments || patient.overduePayments === 0;
           default:
             return true;
         }
       });
+    }
+
+    // Apply doctor filter
+    if (doctorFilter !== "all") {
+      filtered = filtered.filter(patient => patient.doctorName === doctorFilter);
     }
 
     // Apply sorting
@@ -195,7 +168,7 @@ export default function PatientsPage() {
 
     setFilteredPatients(filtered);
     setCurrentPage(1);
-  }, [searchTerm, diagnosticFilter, activityFilter, paymentFilter, sortBy, sortOrder, patients]);
+  }, [searchTerm, diagnosticFilter, activityFilter, paymentFilter, doctorFilter, sortBy, sortOrder, patients]);
 
   useEffect(() => {
     filterAndSortPatients();
@@ -206,10 +179,10 @@ export default function PatientsPage() {
     try {
       // Fetch patients with all related data
       const [patientsRes, diagnosticsRes, salesRes, rentalsRes] = await Promise.all([
-        fetch("/api/patients"),
-        fetch("/api/diagnostics"),
-        fetch("/api/sales"),
-        fetch("/api/rentals")
+        fetchWithAuth("/api/patients"),
+        fetchWithAuth("/api/diagnostics"),
+        fetchWithAuth("/api/sales"),
+        fetchWithAuth("/api/rentals")
       ]);
 
       if (!patientsRes.ok || !diagnosticsRes.ok || !salesRes.ok || !rentalsRes.ok) {
@@ -338,7 +311,7 @@ export default function PatientsPage() {
     setIsLoading(true);
     
     try {
-      const response = await fetch("/api/patients", {
+      const response = await fetchWithAuth("/api/patients", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -430,15 +403,14 @@ export default function PatientsPage() {
     setCurrentPage(page);
   };
 
-  const getActivityStats = () => {
-    const stats = { 
+  const getActivityStats = (): ActivityStats => {
+    return { 
       total: filteredPatients.length,
       withDiagnostics: filteredPatients.filter(p => p.diagnostics && p.diagnostics.length > 0).length,
       withSales: filteredPatients.filter(p => p.sales && p.sales.length > 0).length,
       withActiveRentals: filteredPatients.filter(p => p.activeRentals && p.activeRentals > 0).length,
       withOverduePayments: filteredPatients.filter(p => p.overduePayments && p.overduePayments > 0).length
     };
-    return stats;
   };
 
   const renderAddPatientModal = () => {
@@ -532,95 +504,28 @@ export default function PatientsPage() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-        {/* Header with gradient */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xl font-bold text-white">Patients ({filteredPatients.length})</h3>
-            <div className="flex items-center space-x-4 text-blue-100 text-sm">
-              <div>Diagnostics: {activityStats.withDiagnostics}</div>
-              <div>Ventes: {activityStats.withSales}</div>
-              <div>Locations actives: {activityStats.withActiveRentals}</div>
-              <div>Paiements en retard: {activityStats.withOverduePayments}</div>
-            </div>
-          </div>
-        </div>
+        <PatientStatsHeader 
+          filteredPatientsCount={filteredPatients.length}
+          activityStats={activityStats}
+        />
 
-        {/* Search and Filters */}
-        <div className="p-6 border-b border-slate-200 bg-slate-50">
-          <div className="flex flex-col gap-4">
-            {/* Search bar */}
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                placeholder="Rechercher par nom, téléphone, région, médecin, adresse..."
-                className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-
-            {/* Filters */}
-            <div className="flex flex-wrap gap-3">
-              <select
-                value={diagnosticFilter}
-                onChange={(e) => setDiagnosticFilter(e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              >
-                <option value="all">Tous les diagnostics</option>
-                <option value="negative">Négatif</option>
-                <option value="moderate">Modéré</option>
-                <option value="severe">Sévère</option>
-                <option value="none">Sans diagnostic</option>
-              </select>
-
-              <select
-                value={activityFilter}
-                onChange={(e) => setActivityFilter(e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              >
-                <option value="all">Toute activité</option>
-                <option value="recent">Activité récente</option>
-                <option value="inactive">Inactif</option>
-                <option value="hasRentals">Avec locations</option>
-                <option value="hasSales">Avec ventes</option>
-              </select>
-
-              <select
-                value={paymentFilter}
-                onChange={(e) => setPaymentFilter(e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              >
-                <option value="all">Tous les paiements</option>
-                <option value="overdue">Paiements en retard</option>
-                <option value="current">Paiements à jour</option>
-              </select>
-
-              <select
-                value={`${sortBy}-${sortOrder}`}
-                onChange={(e) => {
-                  const [field, order] = e.target.value.split('-');
-                  setSortBy(field);
-                  setSortOrder(order as "asc" | "desc");
-                }}
-                className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              >
-                <option value="lastActivity-desc">Dernière activité (Plus récent)</option>
-                <option value="lastActivity-asc">Dernière activité (Plus ancien)</option>
-                <option value="name-asc">Nom (A-Z)</option>
-                <option value="name-desc">Nom (Z-A)</option>
-                <option value="totalSales-desc">Ventes totales (Plus élevé)</option>
-                <option value="totalSales-asc">Ventes totales (Plus bas)</option>
-                <option value="activeRentals-desc">Locations actives (Plus)</option>
-                <option value="activeRentals-asc">Locations actives (Moins)</option>
-              </select>
-            </div>
-          </div>
-        </div>
+        <PatientFilters
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          diagnosticFilter={diagnosticFilter}
+          setDiagnosticFilter={setDiagnosticFilter}
+          activityFilter={activityFilter}
+          setActivityFilter={setActivityFilter}
+          paymentFilter={paymentFilter}
+          setPaymentFilter={setPaymentFilter}
+          doctorFilter={doctorFilter}
+          setDoctorFilter={setDoctorFilter}
+          doctors={doctors}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
+        />
 
         {filteredPatients.length === 0 ? (
           <div className="p-8 text-center">
@@ -647,283 +552,23 @@ export default function PatientsPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th 
-                      scope="col" 
-                      className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
-                      onClick={() => handleSort("name")}
-                    >
-                      <div className="flex items-center">
-                        Patient
-                        {sortBy === "name" && (
-                          <svg className={`ml-1 h-4 w-4 ${sortOrder === "asc" ? "rotate-180" : ""}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Médecin & Région
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Dernier diagnostic
-                    </th>
-                    <th 
-                      scope="col" 
-                      className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
-                      onClick={() => handleSort("totalSales")}
-                    >
-                      <div className="flex items-center">
-                        Ventes totales
-                        {sortBy === "totalSales" && (
-                          <svg className={`ml-1 h-4 w-4 ${sortOrder === "asc" ? "rotate-180" : ""}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      scope="col" 
-                      className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
-                      onClick={() => handleSort("activeRentals")}
-                    >
-                      <div className="flex items-center">
-                        Locations actives
-                        {sortBy === "activeRentals" && (
-                          <svg className={`ml-1 h-4 w-4 ${sortOrder === "asc" ? "rotate-180" : ""}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Statut
-                    </th>
-                    <th 
-                      scope="col" 
-                      className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
-                      onClick={() => handleSort("lastActivity")}
-                    >
-                      <div className="flex items-center">
-                        Dernière activité
-                        {sortBy === "lastActivity" && (
-                          <svg className={`ml-1 h-4 w-4 ${sortOrder === "asc" ? "rotate-180" : ""}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Créé par
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-slate-100">
-                  {currentPatients.map((patient, index) => {
-                    const latestDiagnostic = patient.latestDiagnostic;
-                    const severity = latestDiagnostic ? calculateIAHSeverity(latestDiagnostic.iahResult) : null;
-                    
-                    return (
-                      <tr 
-                        key={patient.id} 
-                        className={`hover:bg-slate-50 transition-colors duration-150 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-25'}`}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-12 w-12">
-                              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-semibold">
-                                {patient.fullName.charAt(0).toUpperCase()}
-                              </div>
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-semibold text-slate-900">{patient.fullName}</div>
-                              <div className="text-xs text-slate-500">
-                                {patient.phone}
-                                {patient.address && ` • ${patient.address}`}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-slate-900">
-                            {patient.doctorName ? `Dr. ${patient.doctorName}` : '-'}
-                          </div>
-                          <div className="text-xs text-slate-500">{patient.region}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {latestDiagnostic ? (
-                            <div className="flex flex-col space-y-1">
-                              <div className="text-sm font-medium text-slate-900">
-                                IAH: {formatIAHValue(latestDiagnostic.iahResult)}
-                              </div>
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severity!.bgColor} ${severity!.textColor}`}>
-                                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                                  severity!.color === 'emerald' ? 'bg-emerald-500' : 
-                                  severity!.color === 'amber' ? 'bg-amber-500' : 
-                                  'bg-red-500'
-                                }`}></div>
-                                {severity!.labelFr}
-                              </span>
-                              <div className="text-xs text-slate-500">
-                                {formatDate(latestDiagnostic.date)}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-xs text-slate-500 italic">
-                              Pas de diagnostic
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
-                            <span className="text-sm font-medium text-slate-900">
-                              {patient.totalSales ? `${patient.totalSales.toFixed(2)} TND` : '0.00 TND'}
-                            </span>
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {patient.sales ? `${patient.sales.length} vente(s)` : '0 vente'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <Calendar className="h-4 w-4 text-blue-500 mr-1" />
-                            <span className="text-sm font-medium text-slate-900">
-                              {patient.activeRentals || 0}
-                            </span>
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {patient.rentals ? `${patient.rentals.length} total` : '0 total'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex flex-col space-y-1">
-                            {patient.overduePayments && patient.overduePayments > 0 ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                <AlertCircle className="w-3 h-3 mr-1" />
-                                {patient.overduePayments} en retard
-                              </span>
-                            ) : patient.activeRentals && patient.activeRentals > 0 ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                À jour
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                <Clock className="w-3 h-3 mr-1" />
-                                Inactif
-                              </span>
-                            )}
-                            
-                            {patient.diagnostics && patient.diagnostics.length > 0 && (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                <Activity className="w-3 h-3 mr-1" />
-                                {patient.diagnostics.length} diagnostic(s)
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-slate-900">
-                            {patient.lastActivity ? formatDate(patient.lastActivity) : 'Jamais'}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {patient.lastActivity && (
-                              <>
-                                {Math.floor((new Date().getTime() - new Date(patient.lastActivity).getTime()) / (1000 * 60 * 60 * 24))} jour(s)
-                              </>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-slate-900">
-                            {patient.createdBy ? `${patient.createdBy.name} (${patient.createdBy.email})` : 'N/A'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleEditPatient(patient)}
-                              className="flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
-                              title="Modifier"
-                            >
-                              <Pencil size={16} className="mr-1" />
-                              Modifier
-                            </button>
-                            <button
-                              onClick={() => handleDeleteClick(patient)}
-                              className="flex items-center px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
-                              title="Supprimer"
-                            >
-                              <Trash2 size={16} className="mr-1" />
-                              Supprimer
-                            </button>
-                            <Link
-                              href={`/employee/patients/${patient.id}`}
-                              className="flex items-center px-3 py-1 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition-colors"
-                              title="Voir les détails"
-                            >
-                              <FileText size={16} className="mr-1" />
-                              Détails
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <PatientTable
+              patients={currentPatients}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSort={handleSort}
+              onEdit={handleEditPatient}
+              onDelete={handleDeleteClick}
+              formatDate={formatDate}
+            />
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center text-sm text-slate-600">
-                    <span>
-                      Affichage de {startIndex + 1} à {Math.min(endIndex, filteredPatients.length)} sur {filteredPatients.length} patients
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage === 1}
-                      className="px-3 py-1 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Précédent
-                    </button>
-                    
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        className={`px-3 py-1 rounded-md text-sm font-medium ${
-                          currentPage === page
-                            ? 'bg-blue-600 text-white'
-                            : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                    
-                    <button
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={currentPage === totalPages}
-                      className="px-3 py-1 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Suivant
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredPatients.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={handlePageChange}
+            />
           </>
         )}
       </div>
@@ -931,38 +576,12 @@ export default function PatientsPage() {
       {renderAddPatientModal()}
       {renderEditPatientModal()}
 
-      {/* Delete Confirmation Modal */}
-      {isDeleteModalOpen && patientToDelete && (
-        <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Confirmer la suppression">
-          <div className="p-6">
-            <div className="text-center">
-              <AlertCircle className="mx-auto h-12 w-12 text-red-400" />
-              <h3 className="mt-2 text-lg font-medium text-slate-900">Supprimer le patient</h3>
-              <p className="mt-2 text-sm text-slate-500">
-                Êtes-vous sûr de vouloir supprimer <span className="font-bold">{patientToDelete.fullName}</span> ?
-                <br />
-                Cette action est irréversible et supprimera toutes les données associées (ventes, locations, diagnostics, etc.).
-              </p>
-            </div>
-          </div>
-          <div className="bg-slate-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-            <button
-              type="button"
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
-              onClick={handleConfirmDelete}
-            >
-              Supprimer
-            </button>
-            <button
-              type="button"
-              className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
-              onClick={() => setIsDeleteModalOpen(false)}
-            >
-              Annuler
-            </button>
-          </div>
-        </Modal>
-      )}
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        patient={patientToDelete}
+      />
     </div>
   );
 }

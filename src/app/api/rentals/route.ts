@@ -117,7 +117,7 @@ async function getOutstandingBalances(patientId: string) {
 export async function POST(request: Request) {
   try {
     // Get current user for creator tracking
-    const currentUser = await getCurrentUser(request);
+    const currentUser = await getCurrentUser();
     
     const body = await request.json() as RentalRequestData;
     
@@ -498,7 +498,7 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     // Get current user for filtering
-    const currentUser = await getCurrentUser(request);
+    const currentUser = await getCurrentUser();
     
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get('patientId');

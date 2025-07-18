@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { calculateIAHSeverity, formatIAHValue } from "@/utils/diagnosticUtils";
+import { fetchWithAuth } from "@/lib/apiClient";
 
 // Format date function
 const formatDate = (dateString: string): string => {
@@ -42,6 +43,17 @@ type Payment = {
   amount: number;
   type: "CASH" | "CHEQUE" | "TRAITE" | "CNAM" | "VIREMENT" | "MONDAT";
   paymentDate?: string;
+  // Cash payment fields
+  cashTotal?: number;
+  cashAcompte?: number;
+  cashRest?: number;
+  cashRestDate?: string;
+  // CNAM payment fields
+  cnamStatus?: string;
+  cnamFollowupDate?: string;
+  // Due date field
+  dueDate?: string;
+  // Cheque and traite fields
   chequeNumber?: string;
   chequeDate?: string;
   traiteDueDate?: string;
@@ -72,6 +84,16 @@ type Sale = {
     doctorName?: string;
     diagnostics?: Diagnostic[];
     latestDiagnostic?: Diagnostic;
+    technician?: {
+      id: string;
+      name: string;
+      email: string;
+    };
+    supervisor?: {
+      id: string;
+      name: string;
+      email: string;
+    };
   };
   devices: Device[];
   accessories: Accessory[];
@@ -91,7 +113,10 @@ export default function SalesTable() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [doctorFilter, setDoctorFilter] = useState<string>("all");
+  const [regionFilter, setRegionFilter] = useState<string>("all");
+  const [technicianFilter, setTechnicianFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<string>("all");
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -102,7 +127,7 @@ export default function SalesTable() {
     const fetchSales = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch("/api/sales");
+        const response = await fetchWithAuth("/api/sales");
         if (!response.ok) {
           throw new Error("Erreur lors de la récupération des ventes");
         }
@@ -118,6 +143,28 @@ export default function SalesTable() {
 
     fetchSales();
   }, []);
+
+  // Helper functions to get unique values for filters
+  const getUniqueValues = (key: string): string[] => {
+    const values = sales.map(sale => {
+      switch (key) {
+        case 'doctor':
+          return sale.patient.doctorName;
+        case 'region':
+          return sale.patient.region;
+        case 'technician':
+          return sale.patient.technician?.name;
+        default:
+          return null;
+      }
+    }).filter((value): value is string => Boolean(value));
+    return [...new Set(values)];
+  };
+
+  const uniqueDoctors = getUniqueValues('doctor');
+  const uniqueRegions = getUniqueValues('region');
+  const uniqueTechnicians = getUniqueValues('technician');
+  const uniquePaymentTypes = [...new Set(sales.flatMap(sale => sale.payments.map(p => p.type)))];
 
   // Filter and search sales
   useEffect(() => {
@@ -135,10 +182,51 @@ export default function SalesTable() {
       );
     }
 
-    // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(sale => sale.status === statusFilter);
+    // Apply doctor filter
+    if (doctorFilter !== "all") {
+      filtered = filtered.filter(sale => sale.patient.doctorName === doctorFilter);
     }
+
+    // Apply region filter
+    if (regionFilter !== "all") {
+      filtered = filtered.filter(sale => sale.patient.region === regionFilter);
+    }
+
+    // Apply technician filter
+    if (technicianFilter !== "all") {
+      filtered = filtered.filter(sale => sale.patient.technician?.name === technicianFilter);
+    }
+
+    // Apply date filter
+    if (dateFilter !== "all") {
+      const today = new Date();
+      const filterDate = new Date();
+      
+      switch (dateFilter) {
+        case "today":
+          filterDate.setHours(0, 0, 0, 0);
+          filtered = filtered.filter(sale => {
+            const saleDate = new Date(sale.date);
+            saleDate.setHours(0, 0, 0, 0);
+            return saleDate.getTime() === filterDate.getTime();
+          });
+          break;
+        case "week":
+          filterDate.setDate(today.getDate() - 7);
+          filtered = filtered.filter(sale => new Date(sale.date) >= filterDate);
+          break;
+        case "month":
+          filterDate.setMonth(today.getMonth() - 1);
+          filtered = filtered.filter(sale => new Date(sale.date) >= filterDate);
+          break;
+        case "year":
+          filterDate.setFullYear(today.getFullYear() - 1);
+          filtered = filtered.filter(sale => new Date(sale.date) >= filterDate);
+          break;
+      }
+    }
+
+
 
     // Apply payment type filter
     if (paymentTypeFilter !== "all") {
@@ -176,7 +264,7 @@ export default function SalesTable() {
 
     setFilteredSales(filtered);
     setCurrentPage(1); // Reset to first page when filtering
-  }, [sales, searchTerm, statusFilter, paymentTypeFilter, sortBy, sortOrder]);
+  }, [sales, searchTerm, doctorFilter, regionFilter, technicianFilter, dateFilter, paymentTypeFilter, sortBy, sortOrder]);
 
   // Pagination
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
@@ -210,6 +298,35 @@ export default function SalesTable() {
     });
     
     return stats;
+  };
+
+  // Calculate true total amount including unpaid portions (cash rest, etc.)
+  const calculateTrueTotal = (sale: Sale): number => {
+    let total = 0;
+    
+    sale.payments.forEach(payment => {
+      if (payment.type === 'CASH' && payment.cashTotal) {
+        // For cash payments, use the total amount (cashTotal) not just the paid amount
+        total += payment.cashTotal;
+      } else if (payment.type === 'CNAM') {
+        // For CNAM payments, check the status
+        if (payment.cnamStatus === 'ATTENTE') {
+          // ATTENTE status: amount is considered as rest (unpaid/pending)
+          total += payment.amount;
+        } else if (payment.cnamStatus === 'ACCORD') {
+          // ACCORD status: amount is considered as normal paid amount
+          total += payment.amount;
+        } else {
+          // Default case if no status is specified
+          total += payment.amount;
+        }
+      } else {
+        // For other payment types, use the payment amount
+        total += payment.amount;
+      }
+    });
+    
+    return total;
   };
 
   const getItemsWithPayments = (sale: Sale): Array<{ name: string; paymentType: string; amount?: number }> => {
@@ -300,7 +417,7 @@ export default function SalesTable() {
           <h4 className="text-xl font-semibold text-slate-800 mb-2">Aucune vente trouvée</h4>
           <p className="text-slate-600 mb-6">Commencez par créer votre première vente</p>
           <Link 
-            href="/employee/sales" 
+            href="/admin/sales" 
             className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-sm hover:shadow-md"
           >
             <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -325,7 +442,7 @@ export default function SalesTable() {
               {filteredSales.length} vente(s) trouvée(s)
             </div>
             <Link
-              href="/employee/sales"
+              href="/admin/sales"
               className="text-green-100 hover:text-white transition-colors text-sm font-medium"
             >
               Voir toutes
@@ -336,9 +453,9 @@ export default function SalesTable() {
       
       {/* Search and Filters */}
       <div className="p-6 border-b border-slate-200 bg-slate-50">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search bar */}
-          <div className="flex-1 relative">
+        <div className="flex flex-col gap-4">
+          {/* Search bar - moved to top */}
+          <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <svg className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -347,56 +464,92 @@ export default function SalesTable() {
             <input
               type="text"
               placeholder="Rechercher par patient, téléphone, région, adresse, docteur, ID..."
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200"
+              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3">
+          {/* Filters - organized in rows */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            {/* Doctor Filter */}
             <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
+              value={doctorFilter}
+              onChange={(e) => setDoctorFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-sm"
             >
-              <option value="all">Tous les statuts</option>
-              <option value="PENDING">En attente</option>
-              <option value="COMPLETED">Complété</option>
-              <option value="CANCELLED">Annulé</option>
+              <option value="all">Tous les médecins</option>
+              {uniqueDoctors.map((doctor) => (
+                <option key={doctor} value={doctor}>
+                  Dr. {doctor}
+                </option>
+              ))}
             </select>
 
+            {/* Region Filter */}
+            <select
+              value={regionFilter}
+              onChange={(e) => setRegionFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-sm"
+            >
+              <option value="all">Toutes les régions</option>
+              {uniqueRegions.map((region) => (
+                <option key={region} value={region}>
+                  {region}
+                </option>
+              ))}
+            </select>
+
+            {/* Technician Filter */}
+            <select
+              value={technicianFilter}
+              onChange={(e) => setTechnicianFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-sm"
+            >
+              <option value="all">Tous les techniciens</option>
+              {uniqueTechnicians.map((technician) => (
+                <option key={technician} value={technician}>
+                  {technician}
+                </option>
+              ))}
+            </select>
+
+            {/* Date Filter */}
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-sm"
+            >
+              <option value="all">Toutes les dates</option>
+              <option value="today">Aujourd'hui</option>
+              <option value="week">Cette semaine</option>
+              <option value="month">Ce mois</option>
+              <option value="year">Cette année</option>
+            </select>
+
+            {/* Payment Type Filter */}
             <select
               value={paymentTypeFilter}
               onChange={(e) => setPaymentTypeFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-sm"
             >
               <option value="all">Tous les types de paiement</option>
-              <option value="CASH">Cash</option>
-              <option value="CHEQUE">Chèque</option>
-              <option value="TRAITE">Traite</option>
-              <option value="CNAM">CNAM</option>
-              <option value="VIREMENT">Virement</option>
-              <option value="MONDAT">Mondat</option>
+              {uniquePaymentTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type === 'CASH' ? 'Cash' :
+                   type === 'CHEQUE' ? 'Chèque' :
+                   type === 'TRAITE' ? 'Traite' :
+                   type === 'CNAM' ? 'CNAM' :
+                   type === 'VIREMENT' ? 'Virement' :
+                   type === 'MONDAT' ? 'Mondat' : type}
+                </option>
+              ))}
             </select>
+            
 
-            <select
-              value={`${sortBy}-${sortOrder}`}
-              onChange={(e) => {
-                const [field, order] = e.target.value.split('-');
-                setSortBy(field);
-                setSortOrder(order as "asc" | "desc");
-              }}
-              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
-            >
-              <option value="date-desc">Date (Plus récent)</option>
-              <option value="date-asc">Date (Plus ancien)</option>
-              <option value="patient-asc">Patient (A-Z)</option>
-              <option value="patient-desc">Patient (Z-A)</option>
-              <option value="amount-desc">Montant (Plus élevé)</option>
-              <option value="amount-asc">Montant (Plus bas)</option>
-            </select>
           </div>
+
+     
         </div>
 
         {/* Severity Statistics */}
@@ -466,24 +619,11 @@ export default function SalesTable() {
                 Diagnostic
               </th>
               <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Créé par
+                Technicien
               </th>
-              <th 
-                scope="col" 
-                className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
-                onClick={() => handleSort("amount")}
-              >
-                <div className="flex items-center">
-                  Montant
-                  {sortBy === "amount" && (
-                    <svg className={`ml-1 h-4 w-4 ${sortOrder === "asc" ? "rotate-180" : ""}`} fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                </div>
-              </th>
+        
               <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Statut
+                Superviseur
               </th>
               <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Paiements
@@ -501,8 +641,7 @@ export default function SalesTable() {
               return (
                 <tr 
                   key={sale.id} 
-                  className={`hover:bg-slate-50 transition-colors duration-150 cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-slate-25'}`}
-                  onClick={() => window.location.href = `/employee/patients/${sale.patient.id}`}
+                  className={`hover:bg-slate-50 transition-colors duration-150 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-25'}`}
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -535,6 +674,9 @@ export default function SalesTable() {
                     <div className="text-sm text-slate-900">
                       {sale.patient.address || '-'}
                     </div>
+                    <div className="px-4 py-2 whitespace-nowrap">
+                      {sale.patient.region || '-'}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {latestDiagnostic ? (
@@ -559,22 +701,18 @@ export default function SalesTable() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-900">
-                      {sale.createdBy ? ` ${sale.createdBy.name}` : '-'}
+                      {sale.patient.technician ? sale.patient.technician.name : '-'}
+                    </div>
+                  </td>
+              
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-slate-900">
+                      {sale.patient.supervisor ? sale.patient.supervisor.name : '-'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-bold text-slate-900">{sale.amount.toFixed(2)} TND</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                      ${sale.status === 'COMPLETED' ? 'bg-green-100 text-green-800' : 
-                        sale.status === 'CANCELLED' ? 'bg-red-100 text-red-800' : 
-                        'bg-yellow-100 text-yellow-800'}`}>
-                      {sale.status === 'COMPLETED' ? 'Complété' : 
-                       sale.status === 'CANCELLED' ? 'Annulé' : 'En attente'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-bold text-slate-900">Total : {calculateTrueTotal(sale).toFixed(2)} TND</div>
+
                     <div className="flex flex-col space-y-1">
                       {sale.payments.map((payment) => {
                         const paymentColors = {
@@ -587,12 +725,53 @@ export default function SalesTable() {
                         };
                         const colorClass = paymentColors[payment.type] || 'bg-gray-100 text-gray-800';
                         
+                        // Build payment details string
+                        let paymentDetails = `${payment.type}: ${payment.amount.toFixed(2)} TND`;
+                        
+                        // Add cash payment details
+                        if (payment.type === 'CASH' && payment.cashTotal) {
+                          paymentDetails = `${payment.type}: ${payment.cashAcompte?.toFixed(2) || '0.00'} TND`;
+                          if (payment.cashRest && payment.cashRest > 0) {
+                            paymentDetails += ` (Reste: ${payment.cashRest.toFixed(2)} TND)`;
+                            if (payment.cashRestDate) {
+                              paymentDetails += ` - Échéance: ${formatDate(payment.cashRestDate)}`;
+                            }
+                          }
+                          paymentDetails += ` / Total: ${payment.cashTotal.toFixed(2)} TND`;
+                        }
+                        
+                        // Add CNAM payment details
+                        if (payment.type === 'CNAM') {
+                          if (payment.cnamStatus) {
+                            paymentDetails += ` (${payment.cnamStatus})`;
+                          }
+                          if (payment.cnamFollowupDate) {
+                            paymentDetails += ` - Suivi: ${formatDate(payment.cnamFollowupDate)}`;
+                          }
+                        }
+                        
+                        // Add cheque details
+                        if (payment.chequeNumber) {
+                          paymentDetails += ` (${payment.chequeNumber})`;
+                        }
+                        if (payment.chequeDate) {
+                          paymentDetails += ` - ${formatDate(payment.chequeDate)}`;
+                        }
+                        
+                        // Add traite due date
+                        if (payment.traiteDueDate) {
+                          paymentDetails += ` - Échéance: ${formatDate(payment.traiteDueDate)}`;
+                        }
+                        
+                        // Add general due date if available (but not for CNAM if followup date is already shown)
+                        if (payment.dueDate && !payment.traiteDueDate && !payment.cashRestDate && 
+                            !(payment.type === 'CNAM' && payment.cnamFollowupDate)) {
+                          paymentDetails += ` - Échéance: ${formatDate(payment.dueDate)}`;
+                        }
+                        
                         return (
                           <span key={payment.id} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
-                            {payment.type}: {payment.amount.toFixed(2)} TND
-                            {payment.chequeNumber && ` (${payment.chequeNumber})`}
-                            {payment.chequeDate && ` - ${formatDate(payment.chequeDate)}`}
-                            {payment.traiteDueDate && ` - Échéance: ${formatDate(payment.traiteDueDate)}`}
+                            {paymentDetails}
                           </span>
                         );
                       })}
@@ -613,11 +792,8 @@ export default function SalesTable() {
                           }`}
                         >
                           {item.name}
-                          {item.amount !== undefined && (
-                            <span className="ml-1 text-xs text-slate-500">
-                              ({item.amount.toFixed(2)} TND)
-                            </span>
-                          )}
+                         
+                          
                         </span>
                       ))}
                     </div>
@@ -630,7 +806,6 @@ export default function SalesTable() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
         <div className="bg-slate-50 px-6 py-4 border-t border-slate-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center text-sm text-slate-600">
@@ -671,7 +846,6 @@ export default function SalesTable() {
             </div>
           </div>
         </div>
-      )}
     </div>
   );
 }

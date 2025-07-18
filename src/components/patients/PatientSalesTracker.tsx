@@ -24,6 +24,17 @@ interface Payment {
   amount: number;
   type: string;
   paymentDate: string;
+  // Cash payment fields
+  cashTotal?: number;
+  cashAcompte?: number;
+  cashRest?: number;
+  cashRestDate?: string;
+  // CNAM payment fields
+  cnamStatus?: string;
+  cnamFollowupDate?: string;
+  // Due date field
+  dueDate?: string;
+  // Cheque and traite fields
   chequeNumber?: string;
   chequeDate?: string;
   traiteDueDate?: string;

@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Payment" ADD COLUMN     "cashAcompte" DOUBLE PRECISION,
+ADD COLUMN     "cashRest" DOUBLE PRECISION,
+ADD COLUMN     "cashRestDate" TIMESTAMP(3),
+ADD COLUMN     "cashTotal" DOUBLE PRECISION;

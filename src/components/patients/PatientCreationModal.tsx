@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Technician } from "@prisma/client";
 import Modal from "@/components/ui/Modal";
 import PatientForm, { PatientFormData } from "@/components/PatientForm";
+import { fetchWithAuth } from "@/lib/apiClient";
 
 interface PatientCreationModalProps {
   isOpen: boolean;
@@ -34,7 +35,7 @@ export default function PatientCreationModal({
         date: new Date() // Required by the Prisma schema
       };
       
-      const response = await fetch("/api/patients", {
+      const response = await fetchWithAuth("/api/patients", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

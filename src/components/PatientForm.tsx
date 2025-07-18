@@ -3,6 +3,7 @@
 import { Technician, Affiliation, Beneficiary } from '@prisma/client';
 import { useState, useEffect, FormEvent, useRef, useActionState } from 'react';
 import { createPatient } from '@/app/patients/actions';
+import { createPatient as createAdminPatient, createPatientForSales } from '@/app/admin/patients/actions';
 import { getAllRegionNames, getDelegationsForRegion } from '@/utils/tunisianRegions';
 
 // Exporting this type to be used in other components
@@ -30,6 +31,7 @@ interface PatientFormProps {
   onSubmit?: (data: PatientFormData) => void;
   onCancel?: () => void;
   isLoading?: boolean;
+  context?: 'admin' | 'employee' | 'sales'; // Add context prop
 }
 
 export default function PatientForm({ 
@@ -38,10 +40,19 @@ export default function PatientForm({
   initialData, 
   onSubmit, 
   onCancel, 
-  isLoading 
+  isLoading,
+  context = 'employee' 
 }: PatientFormProps) {
   const initialState = { message: undefined, errors: {} };
-  const [state, dispatch] = useActionState(createPatient, initialState);
+  
+  // Select the appropriate action based on context
+  const getAction = () => {
+    if (context === 'admin') return createAdminPatient;
+    if (context === 'sales') return createPatientForSales;
+    return createPatient; // default for employee context
+  };
+  
+  const [state, dispatch] = useActionState(getAction(), initialState);
   const loggedInUserId = currentTechnicianId || "";
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -51,6 +62,17 @@ export default function PatientForm({
       setIsSubmitting(false);
     }
   }, [state]);
+
+  // Handle successful patient creation in sales context
+  useEffect(() => {
+    if (context === 'sales' && onSubmit) {
+      // Check if state has success property (from createPatientForSales)
+      const salesState = state as any;
+      if (salesState?.success && salesState?.patient) {
+        onSubmit(salesState);
+      }
+    }
+  }, [state, context, onSubmit]);
 
   const [formData, setFormData] = useState<PatientFormData>(() => {
     if (initialData) {
@@ -62,7 +84,7 @@ export default function PatientForm({
     return {
       fullName: '',
       phone: '',
-      date: new Date().toISOString().split('T')[0],
+      date: '',
       region: 'Tunis',
       address: '',
       addressDetails: '',
@@ -230,14 +252,13 @@ export default function PatientForm({
               </div>
               <div className="space-y-2">
                 <label htmlFor="date" className="block text-sm font-medium text-slate-700">
-                  Date <span className="text-red-500">*</span>
+                  Date <span className="text-slate-400">(optionnel)</span>
                 </label>
                 <input 
                   type="date" 
                   id="date" 
                   name="date" 
                   className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
-                  required 
                   value={formData.date || ''} 
                   onChange={handleChange} 
                 />

@@ -149,3 +149,25 @@ export type Payment = {
   traiteDueDate?: string;
   notes?: string;
 };
+
+export type ExtendedPatient = Patient & {
+  latestDiagnostic?: {
+    id: number;
+    date: string;
+    polygraph: string;
+    iahResult: number;
+    idResult: number;
+  };
+  totalSales?: number;
+  activeRentals?: number;
+  overduePayments?: number;
+  lastActivity?: string;
+};
+
+export interface ActivityStats {
+  total: number;
+  withDiagnostics: number;
+  withSales: number;
+  withActiveRentals: number;
+  withOverduePayments: number;
+}
