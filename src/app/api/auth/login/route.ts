@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { createAuthResponse } from '@/lib/cookieAuth';
 
 export async function POST(request: Request) {
   try {
@@ -50,20 +49,22 @@ export async function POST(request: Request) {
       { expiresIn: '1d' }
     );
 
-    // Return response with secure cookie and user data
-    console.log('Login successful, creating auth response with token');
-    const response = createAuthResponse({
-      message: 'Connexion réussie',
-      user: {
-        id: technician.id,
-        email: technician.email,
-        name: technician.name,
+    // Return token in response body instead of setting a cookie
+    const response = NextResponse.json(
+      {
+        message: 'Connexion réussie',
+        user: {
+          id: technician.id,
+          email: technician.email,
+          name: technician.name,
+          role: technician.role,
+        },
         role: technician.role,
+        token: token, // Include token in response body
       },
-      role: technician.role,
-    }, token);
-    
-    console.log('Response headers:', response.headers);
+      { status: 200 }
+    );
+
     return response;
   } catch (error) {
     console.error('Login error:', error);

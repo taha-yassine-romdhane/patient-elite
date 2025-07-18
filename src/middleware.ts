@@ -3,28 +3,13 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
 export async function middleware(request: NextRequest) {
-  // Get token from secure cookie
-  const token = request.cookies.get('auth-token')?.value;
+  // Get token from Authorization header (sent by fetchWithAuth)
+  const authHeader = request.headers.get('Authorization');
+  const token = authHeader ? authHeader.replace('Bearer ', '') : null;
   const { pathname } = request.nextUrl;
 
   // Paths that don't require authentication
   if (pathname === '/login' || pathname.startsWith('/api/auth/login') || pathname.startsWith('/api/auth/signup')) {
-    // If user is already logged in, redirect to appropriate dashboard
-    if (token) {
-      try {
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
-        const { payload } = await jwtVerify(token, secret);
-        
-        if (payload.role === 'ADMIN') {
-          return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-        } else {
-          return NextResponse.redirect(new URL('/employee/dashboard', request.url));
-        }
-      } catch {
-        // Invalid token, continue to login page
-        return NextResponse.next();
-      }
-    }
     return NextResponse.next();
   }
 
@@ -33,25 +18,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check if user is authenticated for page routes
-  if (!token) {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-
-  try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
-    const { payload } = await jwtVerify(token, secret);
-
-    // Role-based access control
-    if (pathname.startsWith('/admin') && payload.role !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/employee/dashboard', request.url));
-    }
-
-    return NextResponse.next();
-  } catch {
-    // Token is invalid or expired
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
+  // For page routes, we can't verify localStorage server-side
+  // So we'll let the client-side handle authentication redirects
+  return NextResponse.next();
 }
 
 export const config = {

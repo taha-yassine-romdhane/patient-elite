@@ -1,6 +1,6 @@
 /**
  * API client utility for making authenticated requests
- * Uses secure cookies for HTTPS production deployment
+ * Uses localStorage for token storage instead of cookies
  */
 
 /**
@@ -13,7 +13,8 @@ export async function fetchWithAuth(
   url: string, 
   options: RequestInit = {}
 ): Promise<Response> {
-  // Get user info from localStorage for client-side access
+  // Get token and user info from localStorage
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   let userInfo = null;
   
   if (typeof window !== 'undefined') {
@@ -27,23 +28,24 @@ export async function fetchWithAuth(
     }
   }
   
-  // Set up headers and include credentials for cookies
+  // Set up headers with Authorization if token exists
   const headers = {
     ...(options.headers || {}),
     'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
   };
 
-  // Return fetch with credentials included for cookies
+  // Return fetch with the updated options
   const response = await fetch(url, {
     ...options,
-    headers,
-    credentials: 'include' // Important: include cookies
+    headers
   });
   
   // Handle authentication errors
   if (response.status === 401) {
     // Clear authentication data
     if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
       localStorage.removeItem('userInfo');
       
       // Redirect to login page
@@ -67,8 +69,7 @@ export async function fetchWithAuth(
  */
 export function isAuthenticated(): boolean {
   if (typeof window === 'undefined') return false;
-  // With cookies, we check if user info exists (cookie is httpOnly)
-  return !!localStorage.getItem('userInfo');
+  return !!localStorage.getItem('token');
 }
 
 /**

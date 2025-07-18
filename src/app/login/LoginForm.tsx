@@ -29,7 +29,6 @@ export default function LoginForm() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: 'include', // Important: include cookies in request
         body: JSON.stringify({ email, password }),
       });
 
@@ -39,8 +38,8 @@ export default function LoginForm() {
         throw new Error(data.message || "Une erreur est survenue lors de la connexion");
       }
       
-      // With secure cookies, the server sets the cookie automatically
-      // We just need to store user info in localStorage for client-side access
+      // Store token and user info in localStorage
+      localStorage.setItem('token', data.token);
       localStorage.setItem('userInfo', JSON.stringify({
         id: data.user.id,
         email: data.user.email,

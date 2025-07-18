@@ -1,5 +1,5 @@
 import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
+import { headers } from 'next/headers';
 
 export interface AuthUser {
   id: string;
@@ -10,9 +10,10 @@ export interface AuthUser {
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
-    // Get token from secure cookie
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth-token')?.value;
+    // Get token from Authorization header instead of cookies
+    const headersList = await headers();
+    const authHeader = headersList.get('Authorization');
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null;
     
     if (!token) {
       return null;

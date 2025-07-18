@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { prisma } from '@/lib/prisma';
-import { getCookie } from '@/lib/cookieAuth';
 
 export async function GET(request: Request) {
   try {
-    // Get token from secure cookie
-    const token = getCookie(request, 'auth-token');
+    // Get token from Authorization header
+    const authHeader = request.headers.get('Authorization');
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
     if (!token) {
       return NextResponse.json(
