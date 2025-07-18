@@ -4,7 +4,6 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import crypto from 'crypto';
 
 export interface SessionData {
   id: string;
@@ -21,10 +20,13 @@ export interface SessionData {
 }
 
 /**
- * Generate a secure random session token
+ * Generate a secure random session token using Web Crypto API
  */
 function generateSessionToken(): string {
-  return crypto.randomBytes(32).toString('hex');
+  // Use Web Crypto API which is supported in Edge Runtime
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 /**

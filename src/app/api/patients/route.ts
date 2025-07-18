@@ -1,11 +1,20 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser } from '@/lib/auth';
+import { getSessionFromRequest } from '@/lib/apiAuth';
 
 export async function GET(request: Request) {
   try {
-    // Get current user for filtering
-    const currentUser = await getCurrentUser();
+    // Get current user from session
+    const session = await getSessionFromRequest(request);
+    
+    if (!session) {
+      return NextResponse.json(
+        { message: 'Authentication requise' },
+        { status: 401 }
+      );
+    }
+    
+    const currentUser = session.user;
     
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
@@ -36,9 +45,9 @@ export async function GET(request: Request) {
       where.technicianId = technicianId;
     }
     
-    // Filter by technician for employee users
-    if (currentUser?.role === 'EMPLOYEE') {
-      where.technicianId = currentUser.id;
+    // Filter by creator for employee users
+    if (currentUser.role === 'EMPLOYEE') {
+      where.createdById = currentUser.id;
     }
     
     const patients = await prisma.patient.findMany({
@@ -129,8 +138,17 @@ export async function PUT(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    // Get current user for creator tracking
-    const currentUser = await getCurrentUser();
+    // Get current user from session
+    const session = await getSessionFromRequest(request);
+    
+    if (!session) {
+      return NextResponse.json(
+        { message: 'Authentication requise' },
+        { status: 401 }
+      );
+    }
+    
+    const currentUser = session.user;
     
     // Get the patient data from the request body
     const patientData = await request.json();
@@ -158,7 +176,7 @@ export async function POST(request: Request) {
       beneficiary: patientData.hasCnam ? patientData.beneficiary : null,
       technicianId: patientData.technicianId || null,
       supervisorId: patientData.supervisorId || null,
-      createdById: currentUser ? currentUser.id : null,
+      createdById: currentUser.id,
     };
 
     // Create the new patient

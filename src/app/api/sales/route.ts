@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TRANSACTION_STATUS, SALETYPE } from '@prisma/client';
-import { getCurrentUser } from '@/lib/auth';
+import { getSessionFromRequest } from '@/lib/apiAuth';
 
 // Device data structure for API request
 type DeviceData = {
@@ -55,8 +55,17 @@ type SaleRequestData = {
 
 export async function POST(request: Request) {
   try {
-    // Get current user for creator tracking
-    const currentUser = await getCurrentUser();
+    // Get current user from session
+    const session = await getSessionFromRequest(request);
+    
+    if (!session) {
+      return NextResponse.json(
+        { message: 'Authentication requise' },
+        { status: 401 }
+      );
+    }
+    
+    const currentUser = session.user;
     
     const body = await request.json() as SaleRequestData;
     const { patientId, date, amount, status, notes, devices, accessories, payments } = body;
@@ -104,7 +113,9 @@ export async function POST(request: Request) {
         patient: {
           connect: { id: patientId }
         },
-        createdBy: currentUser ? { connect: { id: currentUser.id } } : undefined,
+        createdBy: {
+          connect: { id: currentUser.id }
+        },
         // Create devices if any
         devices: devices && devices.length > 0 ? {
           create: devices.map(device => ({
@@ -211,20 +222,29 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    // Get current user for filtering
-    const currentUser = await getCurrentUser();
+    // Get current user from session
+    const session = await getSessionFromRequest(request);
+    
+    if (!session) {
+      return NextResponse.json(
+        { message: 'Authentication requise' },
+        { status: 401 }
+      );
+    }
+    
+    const currentUser = session.user;
     
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get('patientId');
     
-    const where: { patientId?: string; patient?: { technicianId?: string } } = {};
+    const where: { patientId?: string; createdById?: string } = {};
     if (patientId) {
       where.patientId = patientId;
     }
     
-    // Filter by technician for employee users
-    if (currentUser?.role === 'EMPLOYEE') {
-      where.patient = { technicianId: currentUser.id };
+    // Filter by creator for employee users
+    if (currentUser.role === 'EMPLOYEE') {
+      where.createdById = currentUser.id;
     }
     
     const sales = await prisma.sale.findMany({

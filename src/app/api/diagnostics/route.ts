@@ -1,11 +1,20 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser } from '@/lib/auth';
+import { getSessionFromRequest } from '@/lib/apiAuth';
 
 export async function POST(request: Request) {
   try {
-    // Get current user for creator tracking
-    const currentUser = await getCurrentUser();
+    // Get current user from session
+    const session = await getSessionFromRequest(request);
+    
+    if (!session) {
+      return NextResponse.json(
+        { message: 'Authentication requise' },
+        { status: 401 }
+      );
+    }
+    
+    const currentUser = session.user;
     
     const body = await request.json();
     const { patientId, date, polygraph, iahResult, idResult, remarks } = body;
@@ -29,7 +38,9 @@ export async function POST(request: Request) {
         patient: {
           connect: { id: patientId }
         },
-        createdBy: currentUser ? { connect: { id: currentUser.id } } : undefined,
+        createdBy: {
+          connect: { id: currentUser.id }
+        },
       },
       include: {
         patient: {
@@ -68,8 +79,17 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    // Get current user for filtering
-    const currentUser = await getCurrentUser();
+    // Get current user from session
+    const session = await getSessionFromRequest(request);
+    
+    if (!session) {
+      return NextResponse.json(
+        { message: 'Authentication requise' },
+        { status: 401 }
+      );
+    }
+    
+    const currentUser = session.user;
     
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get('patientId');
@@ -80,7 +100,7 @@ export async function GET(request: Request) {
     }
     
     // Filter by creator for employee users
-    if (currentUser?.role === 'EMPLOYEE') {
+    if (currentUser.role === 'EMPLOYEE') {
       where.createdById = currentUser.id;
     }
     

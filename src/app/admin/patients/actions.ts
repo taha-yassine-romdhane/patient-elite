@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUserForServerAction } from '@/lib/serverActionAuth';
 import { Affiliation, Beneficiary } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -25,7 +25,7 @@ const PatientSchema = z.object({
 });
 
 export async function createPatient(prevState: unknown, formData: FormData) {
-  const user = await getCurrentUser();
+  const user = await getCurrentUserForServerAction();
 
   if (!user) {
     return {
@@ -98,7 +98,7 @@ export async function createPatient(prevState: unknown, formData: FormData) {
 
 // Admin-specific patient creation action that doesn't redirect
 export async function createPatientForSales(prevState: unknown, formData: FormData) {
-  const user = await getCurrentUser();
+  const user = await getCurrentUserForServerAction();
 
   if (!user) {
     return {

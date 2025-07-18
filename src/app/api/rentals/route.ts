@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { RETURN_STATUS, SALETYPE, TRANSACTION_STATUS, RENTAL_ITEM_TYPE } from '@prisma/client';
-import { getCurrentUser } from '@/lib/auth';
+import { getSessionFromRequest } from '@/lib/apiAuth';
 
 // RentalItem data structure for API request
 type RentalItemData = {
@@ -116,8 +116,17 @@ async function getOutstandingBalances(patientId: string) {
 
 export async function POST(request: Request) {
   try {
-    // Get current user for creator tracking
-    const currentUser = await getCurrentUser();
+    // Get current user from session
+    const session = await getSessionFromRequest(request);
+    
+    if (!session) {
+      return NextResponse.json(
+        { message: 'Authentication requise' },
+        { status: 401 }
+      );
+    }
+    
+    const currentUser = session.user;
     
     const body = await request.json() as RentalRequestData;
     
@@ -497,8 +506,17 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    // Get current user for filtering
-    const currentUser = await getCurrentUser();
+    // Get current user from session
+    const session = await getSessionFromRequest(request);
+    
+    if (!session) {
+      return NextResponse.json(
+        { message: 'Authentication requise' },
+        { status: 401 }
+      );
+    }
+    
+    const currentUser = session.user;
     
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get('patientId');

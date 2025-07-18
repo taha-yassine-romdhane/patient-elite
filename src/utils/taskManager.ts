@@ -1,4 +1,5 @@
 import { Task, TaskType, createDiagnosticTask, createPaymentReminderTask, createOverduePaymentTask } from './taskUtils';
+import { fetchWithAuth } from '@/lib/apiClient';
 
 const STORAGE_KEY = 'calendarTasks';
 
@@ -145,7 +146,7 @@ export class TaskManager {
 
   private async loadDiagnosticTasks(): Promise<void> {
     try {
-      const response = await fetch('/api/diagnostics');
+      const response = await fetchWithAuth('/api/diagnostics');
       if (!response.ok) return;
 
       const diagnostics = await response.json();

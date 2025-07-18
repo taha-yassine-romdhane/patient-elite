@@ -1,12 +1,21 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser } from '@/lib/auth';
+import { getSessionFromRequest } from '@/lib/apiAuth';
 
 export async function GET(request: Request) {
   try {
-    const currentUser = await getCurrentUser();
+    const session = await getSessionFromRequest(request);
+    
+    if (!session) {
+      return NextResponse.json(
+        { message: 'Authentication requise' },
+        { status: 401 }
+      );
+    }
+    
+    const currentUser = session.user;
 
-    if (currentUser?.role !== 'ADMIN') {
+    if (currentUser.role !== 'ADMIN') {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -69,8 +78,18 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const currentUser = await getCurrentUser();
-    if (currentUser?.role !== 'ADMIN') {
+    const session = await getSessionFromRequest(request);
+    
+    if (!session) {
+      return NextResponse.json(
+        { message: 'Authentication requise' },
+        { status: 401 }
+      );
+    }
+    
+    const currentUser = session.user;
+
+    if (currentUser.role !== 'ADMIN') {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 

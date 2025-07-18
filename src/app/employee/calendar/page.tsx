@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Task, TaskType, TaskPriority } from "../../../utils/taskUtils";
-import { taskManager } from "../../../utils/taskManager";
+import { Task, TaskType, TaskPriority } from "@/utils/taskUtils";
+import { taskManager } from "@/utils/taskManager";
+import { fetchWithAuth } from "@/lib/apiClient";
 import CalendarGrid from "../../../components/calendar/CalendarGrid";
 import CalendarHeader from "../../../components/calendar/CalendarHeader";
 import AddTaskModal from "../../../components/calendar/AddTaskModal";
@@ -83,12 +84,12 @@ export default function CalendarPage() {
 
   const fetchAllData = useCallback(async () => {
     try {
-      // Fetch all data in parallel
+      // Fetch all data in parallel with authentication
       const [patientsRes, diagnosticsRes, salesRes, rentalsRes] = await Promise.all([
-        fetch("/api/patients"),
-        fetch("/api/diagnostics"),
-        fetch("/api/sales"),
-        fetch("/api/rentals")
+        fetchWithAuth("/api/patients"),
+        fetchWithAuth("/api/diagnostics"),
+        fetchWithAuth("/api/sales"),
+        fetchWithAuth("/api/rentals")
       ]);
 
       // Check if all requests were successful
