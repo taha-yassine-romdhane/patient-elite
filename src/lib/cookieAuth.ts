@@ -24,8 +24,8 @@ export function setSecureCookie(
 ) {
   const defaultOptions: CookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production', // Only secure in production
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // Lax for development
     maxAge: 24 * 60 * 60, // 24 hours
     path: '/',
   };
@@ -54,6 +54,7 @@ export function setSecureCookie(
     cookieString += `; SameSite=${finalOptions.sameSite}`;
   }
 
+  console.log('Setting cookie:', cookieString);
   response.headers.set('Set-Cookie', cookieString);
   return response;
 }
@@ -62,7 +63,10 @@ export function setSecureCookie(
  * Clear a cookie by setting it to expire
  */
 export function clearCookie(response: NextResponse, name: string) {
-  const cookieString = `${name}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=strict`;
+  const isProduction = process.env.NODE_ENV === 'production';
+  const secureFlag = isProduction ? '; Secure' : '';
+  const sameSiteFlag = isProduction ? '; SameSite=strict' : '; SameSite=lax';
+  const cookieString = `${name}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly${secureFlag}${sameSiteFlag}`;
   response.headers.set('Set-Cookie', cookieString);
   return response;
 }
@@ -90,7 +94,7 @@ export function createAuthResponse(data: any, token: string) {
   setSecureCookie(response, 'auth-token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     maxAge: 24 * 60 * 60, // 24 hours
   });
 

@@ -51,7 +51,8 @@ export async function POST(request: Request) {
     );
 
     // Return response with secure cookie and user data
-    return createAuthResponse({
+    console.log('Login successful, creating auth response with token');
+    const response = createAuthResponse({
       message: 'Connexion réussie',
       user: {
         id: technician.id,
@@ -61,6 +62,9 @@ export async function POST(request: Request) {
       },
       role: technician.role,
     }, token);
+    
+    console.log('Response headers:', response.headers);
+    return response;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(
