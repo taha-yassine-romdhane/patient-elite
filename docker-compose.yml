@@ -1,15 +1,38 @@
 services:
+  # Next.js Application
   web:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: patient-elite-web
     network_mode: "host"
-    ports:
-      - "3002:3002"  # This is ignored but kept for docs
     environment:
       - DATABASE_URL=postgres://postgres:admin@localhost:5432/elite_patient
+      - DIRECT_URL=postgres://postgres:admin@localhost:5432/elite_patient
       - NEXT_PUBLIC_APP_URL=https://patient-elite.elitemedicaleservices.tn
       - NODE_ENV=production
-    env_file:
-      - .env
+      - JWT_SECRET=128791827398127389
+      - COOKIE_SECURE=true
+      - COOKIE_SAME_SITE=strict
+      - NEXTAUTH_URL=https://patient-elite.elitemedicaleservices.tn
+      - NEXTAUTH_SECRET=F8mSyM6FuQaKN1p18oPuqpd2pu3ABldMSm1Gt1Ng3/8=
     restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: patient-elite-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - web
+    restart: unless-stopped
+    network_mode: "host"
+
+networks:
+  app-network:
+    driver: bridge
