@@ -5,16 +5,17 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: patient-elite-web
-    network_mode: "host"
+    ports:
+      - "9000:3002"
     environment:
-      - DATABASE_URL=postgres://postgres:admin@localhost:5432/elite_patient
-      - DIRECT_URL=postgres://postgres:admin@localhost:5432/elite_patient
-      - NEXT_PUBLIC_APP_URL=http://51.75.18.81:3002
+      - DATABASE_URL=postgres://postgres:admin@host.docker.internal:5432/elite_patient
+      - DIRECT_URL=postgres://postgres:admin@host.docker.internal:5432/elite_patient
+      - NEXT_PUBLIC_APP_URL=http://51.75.18.81:9000
       - NODE_ENV=production
       - JWT_SECRET=128791827398127389
       - COOKIE_SECURE=false
       - COOKIE_SAME_SITE=lax
-      - NEXTAUTH_URL=http://51.75.18.81:3002
+      - NEXTAUTH_URL=http://51.75.18.81:9000
       - NEXTAUTH_SECRET=F8mSyM6FuQaKN1p18oPuqpd2pu3ABldMSm1Gt1Ng3/8=
     restart: unless-stopped
 
