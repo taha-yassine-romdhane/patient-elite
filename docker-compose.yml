@@ -23,8 +23,8 @@ services:
     image: nginx:alpine
     container_name: patient-elite-nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"
+      - "8443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
