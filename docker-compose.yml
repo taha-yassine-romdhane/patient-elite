@@ -5,9 +5,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: patient-elite-web
+    network_mode: "host"
     environment:
-      - DATABASE_URL=postgres://postgres:admin@host.docker.internal:5432/elite_patient
-      - DIRECT_URL=postgres://postgres:admin@host.docker.internal:5432/elite_patient
+      - DATABASE_URL=postgres://postgres:admin@localhost:5432/elite_patient
+      - DIRECT_URL=postgres://postgres:admin@localhost:5432/elite_patient
       - NEXT_PUBLIC_APP_URL=http://patient-elite.elitemedicaleservices.tn
       - NODE_ENV=production
       - JWT_SECRET=128791827398127389
@@ -16,25 +17,17 @@ services:
       - NEXTAUTH_URL=http://patient-elite.elitemedicaleservices.tn
       - NEXTAUTH_SECRET=F8mSyM6FuQaKN1p18oPuqpd2pu3ABldMSm1Gt1Ng3/8=
     restart: unless-stopped
-    networks:
-      - app-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
     container_name: patient-elite-nginx
-    ports:
-      - "8080:80"
-      - "8443:443"
+    network_mode: "host"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - web
     restart: unless-stopped
-    networks:
-      - app-network
 
 networks:
   app-network:
