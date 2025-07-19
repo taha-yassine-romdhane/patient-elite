@@ -1,10 +1,13 @@
 /**
  * Server Action Authentication Helper
  * Handles authentication for Next.js Server Actions
+ * 
+ * Note: Server Actions cannot access localStorage directly.
+ * Authentication is handled by passing user ID in form data and validating it.
  */
 
-import { cookies } from 'next/headers';
 import { validateSession, type SessionData } from './sessionAuth';
+import { prisma } from './prisma';
 
 export interface ServerActionUser {
   id: string;
@@ -14,18 +17,12 @@ export interface ServerActionUser {
 }
 
 /**
- * Get current user from session for Server Actions
- * Server Actions can access cookies but not Authorization headers
+ * Get current user by validating session token for Server Actions
+ * Since Server Actions can't access localStorage, the token must be passed explicitly
  */
-export async function getCurrentUserForServerAction(): Promise<ServerActionUser | null> {
+export async function getCurrentUserForServerAction(token?: string): Promise<ServerActionUser | null> {
   try {
-    // Get session token from cookies
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth-token')?.value;
-    
     if (!token) {
-      // If no cookie, try to get from localStorage (this won't work in server actions)
-      // Server actions need to rely on cookies or other server-side storage
       return null;
     }
 
@@ -49,10 +46,47 @@ export async function getCurrentUserForServerAction(): Promise<ServerActionUser 
 }
 
 /**
- * Require authentication for Server Action
+ * Get current user by user ID for Server Actions
+ * This is an alternative when you have the user ID from form data
  */
-export async function requireAuthForServerAction(): Promise<ServerActionUser> {
-  const user = await getCurrentUserForServerAction();
+export async function getCurrentUserByIdForServerAction(userId: string): Promise<ServerActionUser | null> {
+  try {
+    if (!userId) {
+      return null;
+    }
+
+    // Get user from database
+    const user = await prisma.technician.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+      },
+    });
+    
+    if (!user) {
+      return null;
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    };
+  } catch (error) {
+    console.error('Error getting current user by ID for server action:', error);
+    return null;
+  }
+}
+
+/**
+ * Require authentication for Server Action using token
+ */
+export async function requireAuthForServerAction(token?: string): Promise<ServerActionUser> {
+  const user = await getCurrentUserForServerAction(token);
   
   if (!user) {
     throw new Error('Authentication required');
@@ -62,10 +96,36 @@ export async function requireAuthForServerAction(): Promise<ServerActionUser> {
 }
 
 /**
- * Require specific role for Server Action
+ * Require authentication for Server Action using user ID
  */
-export async function requireRoleForServerAction(requiredRole: string): Promise<ServerActionUser> {
-  const user = await requireAuthForServerAction();
+export async function requireAuthForServerActionById(userId: string): Promise<ServerActionUser> {
+  const user = await getCurrentUserByIdForServerAction(userId);
+  
+  if (!user) {
+    throw new Error('Authentication required');
+  }
+  
+  return user;
+}
+
+/**
+ * Require specific role for Server Action using token
+ */
+export async function requireRoleForServerAction(requiredRole: string, token?: string): Promise<ServerActionUser> {
+  const user = await requireAuthForServerAction(token);
+  
+  if (user.role !== requiredRole) {
+    throw new Error(`Role ${requiredRole} required`);
+  }
+  
+  return user;
+}
+
+/**
+ * Require specific role for Server Action using user ID
+ */
+export async function requireRoleForServerActionById(requiredRole: string, userId: string): Promise<ServerActionUser> {
+  const user = await requireAuthForServerActionById(userId);
   
   if (user.role !== requiredRole) {
     throw new Error(`Role ${requiredRole} required`);

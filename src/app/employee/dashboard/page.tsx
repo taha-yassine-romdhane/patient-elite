@@ -30,17 +30,21 @@ export default function EmployeeDashboard() {
   
   const handleLogout = async () => {
     try {
+      // Get token for logout API call
+      const token = localStorage.getItem('token');
+      
       const response = await fetch('/api/auth/logout', {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
       });
       
       if (response.ok) {
         // Clear all auth data from localStorage
         localStorage.removeItem('userInfo');
         localStorage.removeItem('token');
-        
-        // Clear the cookie used by middleware
-        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict';
         
         // Use hard redirect instead of Next.js router to ensure complete navigation
         window.location.href = '/login';

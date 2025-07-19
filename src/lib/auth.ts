@@ -1,5 +1,5 @@
-import { jwtVerify } from 'jose';
 import { headers } from 'next/headers';
+import { validateSession } from './sessionAuth';
 
 export interface AuthUser {
   id: string;
@@ -10,7 +10,7 @@ export interface AuthUser {
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
-    // Get token from Authorization header instead of cookies
+    // Get token from Authorization header
     const headersList = await headers();
     const authHeader = headersList.get('Authorization');
     const token = authHeader ? authHeader.replace('Bearer ', '') : null;
@@ -19,26 +19,18 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       return null;
     }
     
-    // Check if JWT_SECRET is set
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      console.warn('JWT_SECRET is not set in environment variables');
-      return null;
-    }
+    // Validate session from database
+    const session = await validateSession(token);
     
-    // Verify token
-    const secret = new TextEncoder().encode(jwtSecret);
-    const { payload } = await jwtVerify(token, secret);
-    
-    if (!payload.id || !payload.email || !payload.name || !payload.role) {
+    if (!session) {
       return null;
     }
     
     return {
-      id: payload.id as string,
-      email: payload.email as string,
-      name: payload.name as string,
-      role: payload.role as string,
+      id: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      role: session.user.role,
     };
   } catch (error) {
     console.error('Error extracting current user:', error);

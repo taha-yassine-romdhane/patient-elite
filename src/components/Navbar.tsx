@@ -31,11 +31,15 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     try {
+      // Get token for logout API call
+      const token = localStorage.getItem('token');
+      
       // Call the logout API endpoint
       const response = await fetch('/api/auth/logout', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         }
       });
       
@@ -43,9 +47,6 @@ const Navbar = () => {
         // Clear all auth data from localStorage
         localStorage.removeItem('userInfo');
         localStorage.removeItem('token');
-        
-        // Clear the cookie used by middleware
-        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict';
         
         // Reset user state
         setUser(null);
