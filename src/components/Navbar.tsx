@@ -3,63 +3,22 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-
-type UserInfo = {
-  id: string;
-  name: string;
-  email: string;
-  role: 'ADMIN' | 'EMPLOYEE';
-} | null;
+import { useSession, signOut } from 'next-auth/react';
 
 const Navbar = () => {
-  const [user, setUser] = useState<UserInfo>(null);
+  const { data: session, status } = useSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
-  
-  useEffect(() => {
-    // Check if user is logged in by checking localStorage
-    const userInfo = localStorage.getItem('userInfo');
-    if (userInfo) {
-      try {
-        setUser(JSON.parse(userInfo));
-      } catch (error) {
-        console.error('Error parsing user info:', error);
-        localStorage.removeItem('userInfo');
-      }
-    }
-  }, []);
+  const user = session?.user;
 
   const handleLogout = async () => {
-    try {
-      // Get token for logout API call
-      const token = localStorage.getItem('token');
-      
-      // Call the logout API endpoint
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        // Clear all auth data from localStorage
-        localStorage.removeItem('userInfo');
-        localStorage.removeItem('token');
-        
-        // Reset user state
-        setUser(null);
-        
-        // Use hard redirect instead of Next.js router to ensure complete navigation
-        window.location.href = '/login';
-      } else {
-        console.error('Logout failed:', await response.text());
-      }
-    } catch (error) {
-      console.error('Error during logout:', error);
-    }
+    await signOut({ callbackUrl: '/login' });
   };
+
+  // If user is not logged in, don't show navbar
+  if (status === 'loading' || !session) {
+    return null;
+  }
 
   return (
     <nav className="bg-blue-600 text-white shadow-md fixed w-full z-10">

@@ -1,20 +1,18 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getSessionFromRequest } from '@/lib/apiAuth';
+import { getCurrentUser } from '@/lib/nextauth-server';
 
 export async function GET(request: Request) {
   try {
     // Get current user from session
-    const session = await getSessionFromRequest(request);
+    const currentUser = await getCurrentUser();
     
-    if (!session) {
+    if (!currentUser) {
       return NextResponse.json(
         { message: 'Authentication requise' },
         { status: 401 }
       );
     }
-    
-    const currentUser = session.user;
     
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
@@ -139,16 +137,14 @@ export async function PUT(request: Request) {
 export async function POST(request: Request) {
   try {
     // Get current user from session
-    const session = await getSessionFromRequest(request);
+    const currentUser = await getCurrentUser();
     
-    if (!session) {
+    if (!currentUser) {
       return NextResponse.json(
         { message: 'Authentication requise' },
         { status: 401 }
       );
     }
-    
-    const currentUser = session.user;
     
     // Get the patient data from the request body
     const patientData = await request.json();

@@ -2,56 +2,14 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSession, signOut } from "next-auth/react";
 import TabSwitcher from "@/components/dashboard/TabSwitcher";
-import { fetchWithAuth } from "@/lib/apiClient";
 
 export default function EmployeeDashboard() {
-  const [userName, setUserName] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  
-  useEffect(() => {
-    // Fetch user data when component mounts
-    const fetchUserData = async () => {
-      try {
-        const response = await fetchWithAuth('/api/auth/me');
-        if (response.ok) {
-          const data = await response.json();
-          setUserName(data.name);
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchUserData();
-  }, []);
+  const { data: session, status } = useSession();
   
   const handleLogout = async () => {
-    try {
-      // Get token for logout API call
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        // Clear all auth data from localStorage
-        localStorage.removeItem('userInfo');
-        localStorage.removeItem('token');
-        
-        // Use hard redirect instead of Next.js router to ensure complete navigation
-        window.location.href = '/login';
-      }
-    } catch (error) {
-      console.error('Error during logout:', error);
-    }
+    await signOut({ callbackUrl: '/login' });
   };
   
   return (
@@ -62,10 +20,10 @@ export default function EmployeeDashboard() {
           <h1 className="text-2xl font-bold text-gray-800">Patient CRM</h1>
           
           <div className="flex items-center space-x-4">
-            {!isLoading && (
+            {status !== 'loading' && session && (
               <div className="flex items-center">
                 <span className="text-sm text-gray-600 mr-2">Bienvenue,</span>
-                <span className="text-sm font-medium text-gray-900">{userName}</span>
+                <span className="text-sm font-medium text-gray-900">{session.user?.name}</span>
                 <button 
                   onClick={handleLogout}
                   className="ml-4 text-sm text-gray-600 hover:text-gray-900 flex items-center"

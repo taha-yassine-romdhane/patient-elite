@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { signIn, getSession } from "next-auth/react";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -26,32 +27,28 @@ export default function LoginForm() {
     setError("");
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Une erreur est survenue lors de la connexion");
+      if (result?.error) {
+        setError("Email ou mot de passe incorrect");
+        setIsLoading(false);
+        return;
       }
-      
-      // Store token and user info in localStorage
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('userInfo', JSON.stringify({
-        id: data.user.id,
-        email: data.user.email,
-        name: data.user.name,
-        role: data.user.role
-      }));
 
-      // Redirect based on role
-      if (data.role === "ADMIN") {
-        router.push("/admin/dashboard");
-      } else {
-        router.push("/employee/dashboard");
+      if (result?.ok) {
+        // Get the session to check user role
+        const session = await getSession();
+        
+        // Redirect based on role
+        if (session?.user?.role === "ADMIN") {
+          router.push("/admin/dashboard");
+        } else {
+          router.push("/employee/dashboard");
+        }
       }
     } catch (err: unknown) {
       const error = err as Error;
