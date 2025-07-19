@@ -6,14 +6,14 @@ services:
       dockerfile: Dockerfile
     container_name: patient-elite-web
     environment:
-      - DATABASE_URL=postgres://postgres:admin@localhost:5432/elite_patient
-      - DIRECT_URL=postgres://postgres:admin@localhost:5432/elite_patient
-      - NEXT_PUBLIC_APP_URL=https://patient-elite.elitemedicaleservices.tn
+      - DATABASE_URL=postgres://postgres:admin@host.docker.internal:5432/elite_patient
+      - DIRECT_URL=postgres://postgres:admin@host.docker.internal:5432/elite_patient
+      - NEXT_PUBLIC_APP_URL=http://patient-elite.elitemedicaleservices.tn
       - NODE_ENV=production
       - JWT_SECRET=128791827398127389
-      - COOKIE_SECURE=true
-      - COOKIE_SAME_SITE=strict
-      - NEXTAUTH_URL=https://patient-elite.elitemedicaleservices.tn
+      - COOKIE_SECURE=false
+      - COOKIE_SAME_SITE=lax
+      - NEXTAUTH_URL=http://patient-elite.elitemedicaleservices.tn
       - NEXTAUTH_SECRET=F8mSyM6FuQaKN1p18oPuqpd2pu3ABldMSm1Gt1Ng3/8=
     restart: unless-stopped
     networks:
