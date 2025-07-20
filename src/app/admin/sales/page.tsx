@@ -212,7 +212,7 @@ export default function SalesPage() {
         />
       </div>
       
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {currentStep === 1 && (
           <PatientSelectionStep 
             onPatientSelect={handlePatientSelect} 

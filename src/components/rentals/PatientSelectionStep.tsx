@@ -160,67 +160,64 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
             </button>
           </div>
         ) : (
-          <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-100">
+          <div className="bg-white rounded-xl border border-purple-100 overflow-hidden shadow-sm">
+            <div className="max-h-[60vh] overflow-y-auto">
+              <table className="min-w-full">
+                <thead className="sticky top-0 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100">
                   <tr>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    <th scope="col" className="px-3 py-2 text-left text-xs font-semibold text-purple-800 uppercase tracking-wider">
                       Patient
                     </th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    <th scope="col" className="px-3 py-2 text-left text-xs font-semibold text-purple-800 uppercase tracking-wider">
                       Contact
                     </th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Localisation
+                    <th scope="col" className="px-3 py-2 text-left text-xs font-semibold text-purple-800 uppercase tracking-wider">
+                      Région
                     </th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    <th scope="col" className="px-3 py-2 text-left text-xs font-semibold text-purple-800 uppercase tracking-wider">
                       Médecin
                     </th>
-                    <th scope="col" className="px-6 py-4 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    <th scope="col" className="px-3 py-2 text-center text-xs font-semibold text-purple-800 uppercase tracking-wider sticky right-0 bg-gradient-to-r from-purple-50 to-indigo-50">
                       Action
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-slate-100">
+                <tbody className="bg-white">
                   {filteredPatients.map((patient, index) => (
                     <tr 
                       key={patient.id} 
-                      className={`hover:bg-purple-50 transition-colors duration-150 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-25'}`}
+                      className={`hover:bg-purple-25 transition-colors duration-150 border-b border-purple-50 ${index % 2 === 0 ? 'bg-white' : 'bg-purple-25'}`}
                     >
-                      <td className="px-6 py-5 whitespace-nowrap">
+                      <td className="px-3 py-2.5">
                         <div className="flex items-center">
-                          <div className="flex-shrink-0 h-12 w-12">
-                            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-semibold text-lg">
+                          <div className="flex-shrink-0 h-8 w-8">
+                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-semibold text-sm">
                               {patient.fullName.charAt(0).toUpperCase()}
                             </div>
                           </div>
-                          <div className="ml-4">
-                            <div className="text-lg font-semibold text-slate-900">{patient.fullName}</div>
-                            <div className="text-sm text-slate-500">
-                              {patient.createdAt && `Ajouté le ${new Date(patient.createdAt).toLocaleDateString('fr-FR')}`}
+                          <div className="ml-2">
+                            <div className="text-sm font-semibold text-slate-900">{patient.fullName}</div>
+                            <div className="text-xs text-purple-600">
+                              {patient.createdAt && new Date(patient.createdAt).toLocaleDateString('fr-FR')}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-5 whitespace-nowrap">
+                      <td className="px-3 py-2.5">
                         <div className="text-sm font-medium text-slate-900">{patient.phone}</div>
-                        <div className="text-sm text-slate-500">Téléphone</div>
                       </td>
-                      <td className="px-6 py-5 whitespace-nowrap">
+                      <td className="px-3 py-2.5">
                         <div className="text-sm font-medium text-slate-900">{patient.region}</div>
-                        <div className="text-sm text-slate-500">Région</div>
                       </td>
-                      <td className="px-6 py-5 whitespace-nowrap">
+                      <td className="px-3 py-2.5">
                         <div className="text-sm font-medium text-slate-900">{patient.doctorName || "Non spécifié"}</div>
-                        <div className="text-sm text-slate-500">Médecin traitant</div>
                       </td>
-                      <td className="px-6 py-5 whitespace-nowrap text-center">
+                      <td className="px-3 py-2.5 text-center sticky right-0 bg-white">
                         <button
                           onClick={() => onPatientSelect(patient)}
-                          className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                          className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium text-sm rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md"
                         >
-                          <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                           Sélectionner
@@ -232,8 +229,8 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
               </table>
             </div>
             {filteredPatients.length > 0 && (
-              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200">
-                <p className="text-sm text-slate-600">
+              <div className="bg-purple-25 px-4 py-2 border-t border-purple-100">
+                <p className="text-xs text-purple-700 font-medium">
                   {filteredPatients.length} patient{filteredPatients.length > 1 ? 's' : ''} trouvé{filteredPatients.length > 1 ? 's' : ''}
                   {searchTerm && ` pour "${searchTerm}"`}
                 </p>
