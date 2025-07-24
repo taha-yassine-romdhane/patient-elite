@@ -24,6 +24,78 @@ export function formatDate(dateString: string | Date | null | undefined): string
 }
 
 /**
+ * Convert a date object to YYYY-MM-DD format for HTML date inputs
+ * @param date - Date object or ISO string
+ * @returns Date string in YYYY-MM-DD format
+ */
+export function toDateInputValue(date: Date | string | null | undefined): string {
+  if (!date) return '';
+  
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    return dateObj.toISOString().split('T')[0];
+  } catch (error) {
+    console.error('Error converting date to input value:', error);
+    return '';
+  }
+}
+
+/**
+ * Parse DD/MM/YYYY or DD-MM-YYYY format to Date object
+ * @param dateString - Date string in DD/MM/YYYY or DD-MM-YYYY format
+ * @returns Date object or null if invalid
+ */
+export function parseDDMMYYYY(dateString: string): Date | null {
+  if (!dateString) return null;
+  
+  try {
+    // Handle both DD/MM/YYYY and DD-MM-YYYY formats
+    const cleanedString = dateString.replace(/[-/]/g, '/');
+    const parts = cleanedString.split('/');
+    
+    if (parts.length !== 3) return null;
+    
+    const [day, month, year] = parts;
+    
+    // Create date with European format (month is 0-indexed)
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    
+    // Validate the date
+    if (date.getFullYear() !== parseInt(year) ||
+        date.getMonth() !== parseInt(month) - 1 ||
+        date.getDate() !== parseInt(day)) {
+      return null;
+    }
+    
+    return date;
+  } catch (error) {
+    console.error('Error parsing DD/MM/YYYY date:', error);
+    return null;
+  }
+}
+
+/**
+ * Format date for display in DD/MM/YYYY format regardless of locale
+ * @param date - Date object or ISO string
+ * @returns Formatted date string in DD/MM/YYYY format
+ */
+export function formatDateDDMMYYYY(date: Date | string | null | undefined): string {
+  if (!date) return '';
+  
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const year = dateObj.getFullYear();
+    
+    return `${day}/${month}/${year}`;
+  } catch (error) {
+    console.error('Error formatting date DD/MM/YYYY:', error);
+    return '';
+  }
+}
+
+/**
  * Format a number as currency (DT)
  * @param amount - Number to format
  * @returns Formatted currency string

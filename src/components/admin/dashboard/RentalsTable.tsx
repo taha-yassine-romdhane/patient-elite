@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchWithAuth } from "@/lib/apiClient";
+import { BoxIcon } from "lucide-react";
 
 // Format date function
 const formatDate = (dateString: string): string => {
@@ -28,6 +29,7 @@ type Device = {
   serialNumber: string;
   dailyRate?: number;
   monthlyRate?: number;
+  notes?: string;
 };
 
 type Accessory = {
@@ -37,6 +39,7 @@ type Accessory = {
   quantity?: number;
   dailyRate?: number;
   monthlyRate?: number;
+  notes?: string;
 };
 
 type Payment = {
@@ -51,24 +54,14 @@ type Payment = {
   periodStartDate?: string;
   periodEndDate?: string;
   cnamStatus?: string;
-  dueDate?: string; // Added for overdue tracking
-  overdueDays?: number; // Added for overdue tracking
-  overdueDate?: string; // Added for overdue tracking
-  isOverdue?: boolean; // Added for overdue tracking
-};
-
-type RentalItem = {
-  id: string;
-  itemType: "DEVICE" | "ACCESSORY";
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  startDate: string;
-  endDate: string;
-  notes?: string;
-  device?: Device;
-  accessory?: Accessory;
-  payments: Payment[];
+  cnamSupportAmount?: number;
+  cnamDebutDate?: string;
+  cnamEndDate?: string;
+  cnamSupportMonths?: number;
+  dueDate?: string;
+  overdueDays?: number;
+  overdueDate?: string;
+  isOverdue?: boolean;
 };
 
 type Technician = {
@@ -78,27 +71,16 @@ type Technician = {
   role: string;
 };
 
-type RentalGroup = {
-  id: string;
-  name: string;
-  description?: string;
-  totalPrice: number;
-  startDate: string;
-  endDate: string;
-  notes?: string;
-  rentalItems?: RentalItem[];
-  sharedPayments?: Payment[];
-};
-
 type Rental = {
   id: string;
   startDate: string;
-  endDate: string;
+  endDate: string | null;
   amount: number;
   status: "PENDING" | "COMPLETED" | "CANCELLED";
   returnStatus: "RETURNED" | "NOT_RETURNED" | "PARTIALLY_RETURNED" | "DAMAGED";
   notes?: string;
   actualReturnDate?: string;
+  contractNumber?: string;
   patient: {
     id: string;
     fullName: string;
@@ -112,8 +94,6 @@ type Rental = {
   devices?: Device[];
   accessories?: Accessory[];
   payments?: Payment[];
-  rentalItems?: RentalItem[];
-  rentalGroups?: RentalGroup[];
   createdBy?: {
     id: string;
     name: string;
@@ -130,13 +110,13 @@ type DeviceWithPaymentStatus = {
   serialNumber: string;
   paymentType: string;
   paymentStatus: 'PAID' | 'PENDING' | 'OVERDUE' | 'ENDING_SOON' | 'CRITICAL';
-  paymentEndDate?: string;
-  reminderDate?: string;
+  paymentEndDate?: string | null;
+  reminderDate?: string | null;
   totalAmount: number;
   paidAmount: number;
   outstandingAmount: number;
   lastPaymentDate?: string;
-  rentalEndDate: string;
+  rentalEndDate: string | 'open';
   rentalDuration: number;
   overdueDays?: number; // Added for enhanced overdue tracking
 };
@@ -149,6 +129,7 @@ export default function RentalsTable() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [rentalStatusFilter, setRentalStatusFilter] = useState<string>("all");
   const [reminderMonthFilter, setReminderMonthFilter] = useState<string>("all");
   const [paymentEndMonthFilter, setPaymentEndMonthFilter] = useState<string>("all");
   const [rentalEndMonthFilter, setRentalEndMonthFilter] = useState<string>("all");
@@ -179,32 +160,19 @@ export default function RentalsTable() {
   }, []);
 
   // Calculate payment status for devices with enhanced overdue tracking
-  const calculatePaymentStatus = useCallback((rental: Rental, device: Device | RentalItem): DeviceWithPaymentStatus => {
+  const calculatePaymentStatus = useCallback((rental: Rental, device: Device): DeviceWithPaymentStatus => {
     const today = new Date();
-    const rentalEndDate = new Date(rental.endDate);
-    const rentalDuration = Math.ceil((rentalEndDate.getTime() - new Date(rental.startDate).getTime()) / (1000 * 60 * 60 * 24));
+    const rentalEndDate = rental.endDate ? new Date(rental.endDate) : null;
+    const rentalDuration = rentalEndDate 
+      ? Math.ceil((rentalEndDate.getTime() - new Date(rental.startDate).getTime()) / (1000 * 60 * 60 * 24))
+      : null; // Open-ended rental
     
-    let payments: Payment[] = [];
-    let totalAmount = 0;
-    let deviceName = '';
-    let deviceModel = '';
-    let deviceSerial = '';
-    
-    if ('device' in device && device.device) {
-      // RentalItem with device
-      payments = device.payments || [];
-      totalAmount = device.totalPrice;
-      deviceName = device.device.name;
-      deviceModel = device.device.model;
-      deviceSerial = device.device.serialNumber;
-    } else if ('name' in device) {
-      // Direct device
-      payments = rental.payments || [];
-      totalAmount = rental.amount;
-      deviceName = device.name;
-      deviceModel = device.model;
-      deviceSerial = device.serialNumber;
-    }
+    // For simple rentals, payments are attached to the rental, not individual devices
+    const payments: Payment[] = rental.payments || [];
+    const totalAmount = rental.amount;
+    const deviceName = device.name;
+    const deviceModel = device.model;
+    const deviceSerial = device.serialNumber;
     
     const paidAmount = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
     const outstandingAmount = totalAmount - paidAmount;
@@ -221,7 +189,7 @@ export default function RentalsTable() {
     let paymentStatus: 'PAID' | 'PENDING' | 'OVERDUE' | 'ENDING_SOON' | 'CRITICAL' = 'PENDING';
     let overdueDays = 0;
     let paymentEndDate = rentalEndDate;
-    let reminderDate = new Date(rentalEndDate);
+    let reminderDate = rentalEndDate ? new Date(rentalEndDate) : new Date();
     
     // Check for overdue payments using new payment tracking fields
     const overduePayments = payments.filter(payment => {
@@ -279,7 +247,7 @@ export default function RentalsTable() {
               const endDate = new Date(payment.periodEndDate || payment.paymentDate || '');
               return endDate > latest ? endDate : latest;
             }, new Date(0))
-          : rentalEndDate;
+          : rentalEndDate || new Date(); // Use current date for open-ended rentals
         
         paymentEndDate = oldPaymentEndDate;
         
@@ -298,8 +266,8 @@ export default function RentalsTable() {
     }
     
     // Calculate reminder date
-    const reminderDays = rentalDuration <= 30 ? 5 : 7;
-    reminderDate = new Date(paymentEndDate);
+    const reminderDays = (rentalDuration && rentalDuration <= 30) ? 5 : 7;
+    reminderDate = paymentEndDate ? new Date(paymentEndDate) : new Date();
     reminderDate.setDate(reminderDate.getDate() - reminderDays);
     
     // Get main payment type
@@ -312,14 +280,14 @@ export default function RentalsTable() {
       serialNumber: deviceSerial,
       paymentType: mainPaymentType,
       paymentStatus,
-      paymentEndDate: paymentEndDate.toISOString(),
-      reminderDate: reminderDate.toISOString(),
+      paymentEndDate: paymentEndDate ? paymentEndDate.toISOString() : null,
+      reminderDate: reminderDate ? reminderDate.toISOString() : null,
       totalAmount,
       paidAmount,
       outstandingAmount,
       lastPaymentDate: lastPaymentDate?.toISOString(),
-      rentalEndDate: rental.endDate,
-      rentalDuration,
+      rentalEndDate: rental.endDate || 'open', // Mark open-ended rentals
+      rentalDuration: rentalDuration || 0,
       overdueDays // Add overdue days to the return object
     };
   }, []);
@@ -332,44 +300,108 @@ export default function RentalsTable() {
     }
     
     const devices: DeviceWithPaymentStatus[] = [];
-    const processedDeviceIds = new Set<string>(); // Track processed devices to avoid duplicates
     
-    // First, handle devices from rental groups
-    if (rental.rentalGroups && rental.rentalGroups.length > 0) {
-      rental.rentalGroups.forEach(group => {
-        if (group.rentalItems) {
-          group.rentalItems.forEach(item => {
-            if (item.device && !processedDeviceIds.has(item.device.id)) {
-              devices.push(calculatePaymentStatus(rental, item));
-              processedDeviceIds.add(item.device.id);
-            }
-          });
-        }
-      });
-    }
-    
-    // Then, handle individual rental items (not in groups)
-    if (rental.rentalItems && rental.rentalItems.length > 0) {
-      rental.rentalItems.forEach(item => {
-        if (item.device && !processedDeviceIds.has(item.device.id)) {
-          devices.push(calculatePaymentStatus(rental, item));
-          processedDeviceIds.add(item.device.id);
-        }
-      });
-    }
-    
-    // Fallback to old structure only if no new structure data
-    if (devices.length === 0 && rental.devices) {
+    // For simple rentals, just process the devices array
+    if (rental.devices && rental.devices.length > 0) {
       rental.devices.forEach(device => {
-        if (!processedDeviceIds.has(device.id)) {
-          devices.push(calculatePaymentStatus(rental, device));
-          processedDeviceIds.add(device.id);
-        }
+        devices.push(calculatePaymentStatus(rental, device));
       });
     }
     
     return devices;
   }, [calculatePaymentStatus]);
+
+  // Helper function to collect all notes from rental
+  const getRemainingDaysColor = (device: DeviceWithPaymentStatus) => {
+    if (device.rentalEndDate === 'open') return 'text-blue-600';
+    if (!device.paymentEndDate) return 'text-slate-600';
+    const today = new Date();
+    const paymentEnd = new Date(device.paymentEndDate);
+    const daysRemaining = Math.ceil((paymentEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysRemaining > 30) return 'text-green-600';
+    if (daysRemaining >= 1 && daysRemaining <= 30) return 'text-orange-600';
+    return 'text-red-600';
+  };
+
+  const getRemainingDaysText = (device: DeviceWithPaymentStatus) => {
+    if (device.rentalEndDate === 'open') return 'Location ouverte';
+    if (!device.paymentEndDate) return 'N/A';
+    const today = new Date();
+    const paymentEnd = new Date(device.paymentEndDate);
+    const daysRemaining = Math.ceil((paymentEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysRemaining <= 0) {
+      return `${Math.abs(daysRemaining)} jour${Math.abs(daysRemaining) !== 1 ? 's' : ''} de retard`;
+    }
+    return `${daysRemaining} jour${daysRemaining !== 1 ? 's' : ''}`;
+  };
+
+  const getReminderText = (device: DeviceWithPaymentStatus) => {
+    if (device.rentalEndDate === 'open') return 'Suivi mensuel';
+    if (!device.paymentEndDate) return 'N/A';
+    const today = new Date();
+    const paymentEnd = new Date(device.paymentEndDate);
+    const daysRemaining = Math.ceil((paymentEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    let reminderDays;
+    if (daysRemaining > 30) {
+      reminderDays = 30;
+    } else if (daysRemaining >= 1 && daysRemaining <= 30) {
+      reminderDays = 5;
+    } else {
+      return 'Dépassé';
+    }
+    const reminderDate = new Date(paymentEnd);
+    reminderDate.setDate(reminderDate.getDate() - reminderDays);
+    return formatDate(reminderDate.toISOString());
+  };
+
+  const getAllNotes = useCallback((rental: Rental, scope: 'global' | 'device', deviceId?: string) => {
+    const allNotes = [];
+    
+    if (scope === 'global' && rental.notes && rental.notes.trim()) {
+      allNotes.push({
+        type: 'Location',
+        content: rental.notes,
+        color: 'bg-blue-50 border-blue-400 text-blue-700'
+      });
+    }
+    
+    if (scope === 'device' && rental.devices) {
+      const device = rental.devices.find(d => d.id === deviceId);
+      if (device && device.notes && device.notes.trim()) {
+        allNotes.push({
+          type: `Appareil: ${device.name}`,
+          content: device.notes,
+          color: 'bg-green-50 border-green-400 text-green-700'
+        });
+      }
+    }
+    
+    if (scope === 'global' && rental.accessories) {
+      rental.accessories.forEach((accessory, index) => {
+        if (accessory.notes && accessory.notes.trim()) {
+          allNotes.push({
+            type: `Accessoire: ${accessory.name}`,
+            content: accessory.notes,
+            color: 'bg-purple-50 border-purple-400 text-purple-700'
+          });
+        }
+      });
+    }
+    
+    if (scope === 'global' && rental.payments) {
+      rental.payments.forEach((payment, index) => {
+        if (payment.notes && payment.notes.trim()) {
+          allNotes.push({
+            type: `Paiement ${payment.type}`,
+            content: payment.notes,
+            color: 'bg-orange-50 border-orange-400 text-orange-700'
+          });
+        }
+      });
+    }
+    
+    return allNotes;
+  }, []);
 
   // Get payment status color
   const getPaymentStatusColor = (status: string) => {
@@ -452,6 +484,11 @@ export default function RentalsTable() {
 
 
 
+    // Apply rental status filter
+    if (rentalStatusFilter !== "all") {
+      filtered = filtered.filter(rental => rental.status === rentalStatusFilter);
+    }
+
     // Apply payment status filter
     if (paymentStatusFilter !== "all") {
       filtered = filtered.filter(rental => {
@@ -483,7 +520,7 @@ export default function RentalsTable() {
       filtered = filtered.filter(rental => {
         const devices = getDevicesWithPaymentStatus(rental);
         return devices.some(device => 
-          getMonthFromDate(device.rentalEndDate) === rentalEndMonthFilter
+          device.rentalEndDate !== 'open' && getMonthFromDate(device.rentalEndDate) === rentalEndMonthFilter
         );
       });
     }
@@ -502,8 +539,8 @@ export default function RentalsTable() {
           bValue = b.amount;
           break;
         case "endDate":
-          aValue = new Date(a.endDate);
-          bValue = new Date(b.endDate);
+          aValue = new Date(a.endDate || '');
+          bValue = new Date(b.endDate || '');
           break;
         case "startDate":
         default:
@@ -521,7 +558,7 @@ export default function RentalsTable() {
 
     setFilteredRentals(filtered);
     setCurrentPage(1);
-  }, [rentals, searchTerm, paymentStatusFilter, reminderMonthFilter, paymentEndMonthFilter, rentalEndMonthFilter, sortBy, sortOrder, getDevicesWithPaymentStatus]);
+  }, [rentals, searchTerm, rentalStatusFilter, paymentStatusFilter, reminderMonthFilter, paymentEndMonthFilter, rentalEndMonthFilter, sortBy, sortOrder, getDevicesWithPaymentStatus]);
 
   // Pagination
   const totalPages = Math.ceil(filteredRentals.length / itemsPerPage);
@@ -676,9 +713,16 @@ export default function RentalsTable() {
 
           {/* Filters */}
           <div className="flex flex-wrap gap-3">
-    
-
-
+            <select
+              value={rentalStatusFilter}
+              onChange={(e) => setRentalStatusFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+            >
+              <option value="all">Statut location</option>
+              <option value="PENDING">En attente</option>
+              <option value="COMPLETED">Terminée</option>
+              <option value="CANCELLED">Annulée</option>
+            </select>
 
             <select
               value={paymentStatusFilter}
@@ -826,7 +870,9 @@ export default function RentalsTable() {
               <th scope="col" className="px-4 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Superviseur
               </th>
-
+              <th scope="col" className="px-4 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Statut & Contrat
+              </th>
               <th scope="col" className="px-4 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Appareils & Paiements
               </th>
@@ -894,125 +940,108 @@ export default function RentalsTable() {
                       {rental.patient.supervisor?.role || ''}
                     </div>
                   </td>
-                  <td className="px-4 py-4">
-                    <div className="space-y-3">
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <div className="space-y-2">
+                      <div className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        rental.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                        rental.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {rental.status === 'COMPLETED' ? 'Terminée' :
+                         rental.status === 'CANCELLED' ? 'Annulée' : 'En attente'}
+                      </div>
+                      {rental.contractNumber && (
+                        <div className="text-xs text-slate-600">
+                          <span className="font-medium">Contrat:</span> {rental.contractNumber}
+                        </div>
+                      )}
+                      <div className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        rental.returnStatus === 'RETURNED' ? 'bg-green-100 text-green-800' :
+                        rental.returnStatus === 'PARTIALLY_RETURNED' ? 'bg-yellow-100 text-yellow-800' :
+                        rental.returnStatus === 'DAMAGED' ? 'bg-red-100 text-red-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {rental.returnStatus === 'RETURNED' ? 'Retourné' :
+                         rental.returnStatus === 'PARTIALLY_RETURNED' ? 'Partiellement retourné' :
+                         rental.returnStatus === 'DAMAGED' ? 'Endommagé' : 'Non retourné'}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 align-top">
+                    <div className="space-y-2">
+                      {/* Global Notes */}
+                      {(() => {
+                        const globalNotes = getAllNotes(rental, 'global');
+                        if (globalNotes.length === 0) return null;
+                        return (
+                          <div className="space-y-1 mb-2">
+                            {globalNotes.map((note, noteIndex) => (
+                              <div key={noteIndex} className={`p-1.5 rounded border-l-4 ${note.color}`}>
+                                <div className="flex items-start">
+                                  <div className="flex-shrink-0 pt-0.5">
+                                    <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                    </svg>
+                                  </div>
+                                  <div className="ml-1.5">
+                                    <p className="text-xs font-semibold">{note.type}:</p>
+                                    <p className="text-xs">{note.content}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Devices */}
                       {devicesWithStatus.length === 0 ? (
                         <div className="text-sm text-slate-500 italic">Aucun appareil en cours de location</div>
                       ) : (
                         devicesWithStatus.map((device, deviceIndex) => (
-                          <div key={deviceIndex} className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                            <div className="flex items-center justify-between mb-2">
+                          <div key={deviceIndex} className="bg-slate-50 rounded-lg p-2 border border-slate-200">
+                            <div className="flex items-center justify-between">
                               <div className="flex items-center space-x-2">
                                 <span className="text-sm font-semibold text-slate-900">{device.name}</span>
-                                <span className={`px-2 py-1 text-xs rounded-full ${getPaymentTypeColor(device.paymentType)}`}>
+                                <span className={`px-2 py-0.5 text-xs rounded-full ${getPaymentTypeColor(device.paymentType)}`}>
                                   {device.paymentType}
                                 </span>
                               </div>
-                              <span className={`px-2 py-1 text-xs rounded-full border ${getPaymentStatusColor(device.paymentStatus)}`}>
+                              <span className={`px-2 py-0.5 text-xs rounded-full border ${getPaymentStatusColor(device.paymentStatus)}`}>
                                 {getPaymentStatusText(device.paymentStatus)}
                               </span>
                             </div>
                             
-                            <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="grid grid-cols-2 gap-1 text-xs mt-1">
                               <div className="text-slate-600">
-                                <div className="font-medium">Jours restants:</div>
-                                <div className={`font-semibold ${
-                                  (() => {
-                                    if (!device.paymentEndDate) return 'text-slate-600';
-                                    const today = new Date();
-                                    const paymentEnd = new Date(device.paymentEndDate);
-                                    const daysRemaining = Math.ceil((paymentEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                                    
-                                    if (daysRemaining > 30) return 'text-green-600';
-                                    if (daysRemaining >= 1 && daysRemaining <= 30) return 'text-orange-600';
-                                    return 'text-red-600';
-                                  })()
-                                }`}>
-                                  {(() => {
-                                    if (!device.paymentEndDate) return 'N/A';
-                                    const today = new Date();
-                                    const paymentEnd = new Date(device.paymentEndDate);
-                                    const daysRemaining = Math.ceil((paymentEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                                    
-                                    if (daysRemaining <= 0) {
-                                      return `${Math.abs(daysRemaining)} jour${Math.abs(daysRemaining) !== 1 ? 's' : ''} de retard`;
-                                    }
-                                    return `${daysRemaining} jour${daysRemaining !== 1 ? 's' : ''}`;
-                                  })()}
-                                </div>
+                                <span className="font-medium">Jours restants:</span>
+                                <span className={`font-semibold ml-1 ${getRemainingDaysColor(device)}`}>{getRemainingDaysText(device)}</span>
                               </div>
                               <div className="text-slate-600">
-                                <div className="font-medium">Rappel:</div>
-                                <div className="text-slate-900">
-                                  {(() => {
-                                    if (!device.paymentEndDate) return 'N/A';
-                                    const today = new Date();
-                                    const paymentEnd = new Date(device.paymentEndDate);
-                                    const daysRemaining = Math.ceil((paymentEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                                    
-                                    let reminderDays;
-                                    if (daysRemaining > 30) {
-                                      reminderDays = 30; // Rappel 30 jours avant pour les paiements > 30 jours
-                                    } else if (daysRemaining >= 1 && daysRemaining <= 30) {
-                                      reminderDays = 5; // Rappel 5 jours avant pour les paiements 1-30 jours
-                                    } else {
-                                      return 'Dépassé';
-                                    }
-                                    
-                                    const reminderDate = new Date(paymentEnd);
-                                    reminderDate.setDate(reminderDate.getDate() - reminderDays);
-                                    
-                                    return formatDate(reminderDate.toISOString());
-                                  })()}
-                                </div>
+                                <span className="font-medium">Rappel:</span>
+                                <span className="text-slate-900 ml-1">{getReminderText(device)}</span>
                               </div>
                             </div>
-                            
-                            {/* Enhanced overdue warning */}
-                            {device.paymentStatus === 'OVERDUE' && device.overdueDays && device.overdueDays > 0 && (
-                              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs">
-                                <div className="flex items-center text-red-700">
-                                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                  </svg>
-                                  <span className="font-medium">
-                                    Paiement en retard de {device.overdueDays} jour{device.overdueDays !== 1 ? 's' : ''}
-                                  </span>
-                                </div>
-                                <div className="mt-1 text-red-600">
-                                  Solde restant: {device.outstandingAmount.toFixed(2)} TND
-                                </div>
-                              </div>
-                            )}
-                            
-                            {/* Critical payment warning */}
-                            {device.paymentStatus === 'CRITICAL' && (
-                              <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs">
-                                <div className="flex items-center text-orange-700">
-                                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                  </svg>
-                                  <span className="font-medium">Paiement critique - Action requise</span>
-                                </div>
-                                <div className="mt-1 text-orange-600">
-                                  Échéance: {device.paymentEndDate ? formatDate(device.paymentEndDate) : 'N/A'}
-                                </div>
-                              </div>
-                            )}
-                            
-                            {rental.notes && (
-                              <div className="mt-2 p-2 bg-blue-50 rounded border-l-4 border-blue-400">
-                                <div className="flex items-start">
-                                  <svg className="w-4 h-4 text-blue-400 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                  </svg>
-                                  <div className="text-xs text-blue-700">
-                                    <div className="font-medium">Note:</div>
-                                    <div>{rental.notes}</div>
+
+                            {/* Device-specific Notes */}
+                            {(() => {
+                              const deviceNotes = getAllNotes(rental, 'device', device.id);
+                              return deviceNotes.map((note, noteIndex) => (
+                                <div key={noteIndex} className={`mt-1 p-1.5 rounded border-l-4 ${note.color}`}>
+                                  <div className="flex items-start">
+                                    <div className="flex-shrink-0 pt-0.5">
+                                      <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                      </svg>
+                                    </div>
+                                    <div className="ml-1.5">
+                                      <p className="text-xs font-semibold">{note.type}:</p>
+                                      <p className="text-xs">{note.content}</p>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            )}
+                              ));
+                            })()}
                           </div>
                         ))
                       )}
@@ -1025,7 +1054,11 @@ export default function RentalsTable() {
                       ) : (
                         devicesWithStatus.map((device, deviceIndex) => (
                           <div key={deviceIndex} className="text-sm">
+                            <div className="flex items-center">
+                            <BoxIcon className="inline-block w-4 h-4 mr-2 text-blue-500" />
                             <div className="font-medium text-slate-700 mb-1">{device.name}</div>
+                            </div>
+                            <div className="font-medium text-slate-700 mb-1"><span className="mr-1 text-blue-500">model :</span> {device.model} <span className="mr-1 text-blue-500">SN :</span> {device.serialNumber} </div>
                             <div className="space-y-1">
                               <div className="flex items-center">
                                 <span className="text-xs text-slate-500 mr-2">Jours restants:</span>
@@ -1042,6 +1075,11 @@ export default function RentalsTable() {
                                   })()
                                 }`}>
                                   {(() => {
+                                    // Check if this is an open-ended rental
+                                    if (device.rentalEndDate === 'open') {
+                                      return 'Location ouverte';
+                                    }
+                                    
                                     if (!device.paymentEndDate) return 'N/A';
                                     const today = new Date();
                                     const paymentEnd = new Date(device.paymentEndDate);
@@ -1058,6 +1096,11 @@ export default function RentalsTable() {
                                 <span className="text-xs text-slate-500 mr-2">Rappel:</span>
                                 <span className="text-xs text-slate-700">
                                   {(() => {
+                                    // Check if this is an open-ended rental
+                                    if (device.rentalEndDate === 'open') {
+                                      return 'Suivi mensuel';
+                                    }
+
                                     if (!device.paymentEndDate) return 'N/A';
                                     const today = new Date();
                                     const paymentEnd = new Date(device.paymentEndDate);

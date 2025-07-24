@@ -113,7 +113,6 @@ export async function DELETE(request: Request) {
         await tx.device.deleteMany({ where: { rentalId: rental.id } });
         await tx.accessory.deleteMany({ where: { rentalId: rental.id } });
         await tx.rentalItem.deleteMany({ where: { rentalId: rental.id } });
-        await tx.rentalGroup.deleteMany({ where: { rentalId: rental.id } });
       }
 
       // Delete the top-level related records

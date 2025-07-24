@@ -7,10 +7,29 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  className?: string;
 }
 
-export default function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, size = 'md', className = '' }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+
+  const getSizeClasses = () => {
+    switch (size) {
+      case 'sm':
+        return 'max-w-lg w-full';
+      case 'md':
+        return 'max-w-3xl w-full';
+      case 'lg':
+        return 'max-w-5xl w-full';
+      case 'xl':
+        return 'max-w-7xl w-full';
+      case 'full':
+        return 'max-w-[95vw] w-[95vw]';
+      default:
+        return 'max-w-3xl w-full';
+    }
+  };
 
   useEffect(() => {
     // Handle escape key press
@@ -22,7 +41,15 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
 
     // Handle clicking outside the modal
     const handleOutsideClick = (e: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(e.target as Node) && isOpen) {
+      const target = e.target as Node;
+      
+      // Check if click is on a select dropdown or its content
+      const isSelectDropdown = (target as Element)?.closest('[data-radix-select-content]') ||
+                               (target as Element)?.closest('[data-radix-popper-content-wrapper]') ||
+                               (target as Element)?.closest('[role="listbox"]') ||
+                               (target as Element)?.closest('[data-radix-select-viewport]');
+      
+      if (modalRef.current && !modalRef.current.contains(target) && !isSelectDropdown && isOpen) {
         onClose();
       }
     };
@@ -49,8 +76,8 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <div ref={modalRef} className="bg-white rounded-xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-white/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div ref={modalRef} className={`bg-white rounded-xl shadow-2xl flex flex-col max-h-[90vh] ${getSizeClasses()} ${className}`}>
         {/* Modal Header */}
         <div className="flex justify-between items-center p-6 border-b border-slate-200 flex-shrink-0">
           <h2 className="text-xl font-bold text-slate-800">{title}</h2>

@@ -1,457 +1,203 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Task, TaskType, TaskPriority } from "@/utils/taskUtils";
-import { taskManager } from "@/utils/taskManager";
-import { fetchWithAuth } from "@/lib/apiClient";
-import CalendarGrid from "../../../components/calendar/CalendarGrid";
-import CalendarHeader from "../../../components/calendar/CalendarHeader";
-import AddTaskModal from "../../../components/calendar/AddTaskModal";
-import TaskList from "../../../components/calendar/TaskList";
-import NotificationBar from "../../../components/calendar/NotificationBar";
-import TaskDetailsModal from "../../../components/calendar/TaskDetailsModal";
-import type { RelatedData } from "../../../components/calendar/TaskDetailsModal";
-
-// Types for fetched data
-type Patient = {
-  id: string;
-  fullName: string;
-  phone: string;
-  region: string;
-  address?: string;
-  doctorName?: string;
-};
-
-type Diagnostic = {
-  id: number;
-  date: string;
-  polygraph: string;
-  iahResult: number;
-  idResult: number;
-  remarks?: string;
-  patient: Patient;
-};
-
-type Payment = {
-  id: string;
-  method: string;
-  amount: number;
-  paymentDate: string;
-  periodStartDate?: string;
-  periodEndDate?: string;
-};
-
-type Sale = {
-  id: string;
-  date: string;
-  amount: number;
-  status: string;
-  patient: Patient;
-  payments?: Payment[];
-};
-
-type Rental = {
-  id: string;
-  startDate: string;
-  endDate: string;
-  amount: number;
-  status: string;
-  returnStatus: string;
-  patient: Patient;
-  payments?: Payment[];
-};
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ArrowLeft } from "lucide-react";
+import NewCalendar from "@/components/calendar/NewCalendar";
+import CalendarNotifications from "@/components/calendar/CalendarNotifications";
+import { calendarService, CalendarEvent, NotificationItem } from "@/services/calendarService";
 
 export default function CalendarPage() {
   const router = useRouter();
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [, setTasks] = useState<Task[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<(Task & { relatedData?: RelatedData }) | null>(null);
-  const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false);
-  const [filter, setFilter] = useState<"ALL" | TaskType>("ALL");
-  const [isCalendarView, setIsCalendarView] = useState(true);
-  const [showNotifications, setShowNotifications] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // Data states for location fetching
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [rentals, setRentals] = useState<Rental[]>([]);
-  const [dataLoadingError, setDataLoadingError] = useState<string | null>(null);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState({
+    appointments: 0,
+    rentals: 0,
+    sales: 0,
+    diagnostics: 0,
+    overduePayments: 0
+  });
 
-  const fetchAllData = useCallback(async () => {
+  const loadCalendarData = async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      // Fetch all data in parallel with authentication
-      const [patientsRes, diagnosticsRes, salesRes, rentalsRes] = await Promise.all([
-        fetchWithAuth("/api/patients"),
-        fetchWithAuth("/api/diagnostics"),
-        fetchWithAuth("/api/sales"),
-        fetchWithAuth("/api/rentals")
-      ]);
-
-      // Check if all requests were successful
-      if (!patientsRes.ok || !diagnosticsRes.ok || !salesRes.ok || !rentalsRes.ok) {
-        throw new Error("Erreur lors de la récupération des données");
-      }
-
-      // Parse all responses
-      const [patientsData, diagnosticsData, salesData, rentalsData] = await Promise.all([
-        patientsRes.json(),
-        diagnosticsRes.json(),
-        salesRes.json(),
-        rentalsRes.json()
-      ]);
-
-      // Update state with fetched data
-      setPatients(patientsData);
-      setDiagnostics(diagnosticsData);
-      setSales(salesData);
-      setRentals(rentalsData);
+      await calendarService.fetchAllData();
+      const calendarEvents = calendarService.getCalendarEvents();
+      const calendarNotifications = calendarService.getNotifications();
+      const calendarStats = calendarService.getStats();
+      
+      setEvents(calendarEvents);
+      setNotifications(calendarNotifications);
+      setStats(calendarStats);
       
       console.log("Calendar data loaded:", {
-        patients: patientsData.length,
-        diagnostics: diagnosticsData.length,
-        sales: salesData.length,
-        rentals: rentalsData.length
+        events: calendarEvents.length,
+        notifications: calendarNotifications.length,
+        stats: calendarStats
       });
       
     } catch (error) {
-      console.error("Error fetching data:", error);
-      throw error;
-    }
-  }, []);
-
-  const initializeCalendar = useCallback(async () => {
-    setIsLoading(true);
-    setDataLoadingError(null);
-    
-    try {
-      // Fetch all data from APIs
-      await fetchAllData();
-      
-      // Load auto-generated tasks (this handles duplicates internally)
-      await taskManager.loadAutoGeneratedTasks();
-      
-      // Update tasks state
-      setTasks(taskManager.getTasks());
-      
-      // Initial notification check
-      taskManager.checkNotifications();
-    } catch (error) {
-      console.error("Error initializing calendar:", error);
-      setDataLoadingError("Erreur lors du chargement des données");
+      console.error("Error loading calendar data:", error);
+      setError("Erreur lors du chargement des données");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [fetchAllData]);
+  };
 
-  // Load tasks and request notification permission
   useEffect(() => {
-    initializeCalendar();
+    loadCalendarData();
     
     // Request notification permission
-    if (Notification.permission === "default") {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
-  }, [initializeCalendar]);
-
-  // Check for notifications periodically
-  useEffect(() => {
-    const interval = setInterval(() => {
-      taskManager.checkNotifications();
-    }, 60000); // Check every minute
-
-    return () => clearInterval(interval);
   }, []);
 
-  // Refresh tasks when they change
-  useEffect(() => {
-    const refreshTasks = () => {
-      setTasks(taskManager.getTasks());
-    };
-
-    // Initial load
-    refreshTasks();
-    
-    // Listen for storage changes (if multiple tabs)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'calendarTasks') {
-        refreshTasks();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
-  const handleAddTask = (taskData: {
-    title: string;
-    description: string;
-    date: string;
-    priority: TaskPriority;
-    notifications: boolean;
-  }) => {
-    taskManager.addTask({
-      ...taskData,
-      type: "MANUAL" as TaskType,
-      dueDate: taskData.date,
-      completed: false,
-      notifications: {
-        enabled: taskData.notifications,
-        reminderDate: taskData.notifications ? 
-          new Date(new Date(taskData.date).getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0] : 
-          undefined
-      }
-    });
-    
-    setTasks(taskManager.getTasks());
-    setShowAddTaskModal(false);
-    setSelectedDate(null);
+  const handleEventClick = (event: CalendarEvent) => {
+    console.log("Event clicked:", event);
   };
 
-  const handleToggleTask = (taskId: string) => {
-    taskManager.toggleTaskCompletion(taskId);
-    setTasks(taskManager.getTasks());
+  const handleDateClick = (date: Date) => {
+    console.log("Date clicked:", date);
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    taskManager.deleteTask(taskId);
-    setTasks(taskManager.getTasks());
+  const handleNotificationClick = (notification: NotificationItem) => {
+    console.log("Notification clicked:", notification);
   };
 
-  const handleTaskClick = (task: Task) => {
-    setSelectedTask(task as Task & { relatedData?: RelatedData });
-    setShowTaskDetailsModal(true);
+  const handleNotificationDismiss = (notificationId: string) => {
+    setNotifications(notifications.filter(n => n.id !== notificationId));
   };
 
-  const handleDayClick = (date: string) => {
-    setSelectedDate(date);
-    setShowAddTaskModal(true);
+  const handleNotificationDismissAll = () => {
+    setNotifications([]);
   };
 
-  const handlePrevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-  };
-
-  const handleToday = () => {
-    setCurrentDate(new Date());
-  };
-
-  const handleToggleView = () => {
-    setIsCalendarView(!isCalendarView);
-  };
-
-  const handleFilterChange = (newFilter: "ALL" | TaskType) => {
-    setFilter(newFilter);
+  const handleRefresh = () => {
+    loadCalendarData();
   };
 
   const handleBack = () => {
     router.push('/employee/dashboard');
   };
 
-  const handleNotificationDismiss = () => {
-    setShowNotifications(false);
-  };
-
-  const handleTaskDetailsClose = () => {
-    setShowTaskDetailsModal(false);
-    setSelectedTask(null);
-  };
-
-  const handleRefreshData = async () => {
-    await initializeCalendar();
-  };
-
-  const filteredTasks = taskManager.getFilteredTasks(filter);
-
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-lg text-gray-600">Chargement du calendrier...</span>
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+          <p className="text-lg text-black">Chargement du calendrier...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-white text-black">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Data Summary Bar */}
-        <div className="mb-6 bg-gradient-to-r from-white to-slate-50 rounded-xl shadow-lg border border-slate-200 p-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">Aperçu du système</h2>
-              <p className="text-sm text-slate-500">Statistiques en temps réel des données de l&apos;application.</p>
-            </div>
-            <button
-              onClick={handleRefreshData}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isLoading}
-            >
-              <svg className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>{isLoading ? 'Actualisation...' : 'Actualiser'}</span>
-            </button>
-          </div>
-          
-          <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {/* Patients Stat */}
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg flex items-center shadow-sm">
-              <div className="flex-shrink-0">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.653-.184-1.268-.5-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.653.184-1.268.5-1.857M12 15a4 4 0 100-8 4 4 0 000 8z" /></svg>
-              </div>
-              <div className="ml-4 text-left">
-                <div className="text-2xl font-bold text-slate-800">{patients.length}</div>
-                <div className="text-sm text-slate-600">Patients</div>
-              </div>
-            </div>
-            {/* Diagnostics Stat */}
-            <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg flex items-center shadow-sm">
-              <div className="flex-shrink-0">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-              </div>
-              <div className="ml-4 text-left">
-                <div className="text-2xl font-bold text-slate-800">{diagnostics.length}</div>
-                <div className="text-sm text-slate-600">Diagnostics</div>
-              </div>
-            </div>
-            {/* Sales Stat */}
-            <div className="bg-purple-50 border-l-4 border-purple-500 p-4 rounded-lg flex items-center shadow-sm">
-              <div className="flex-shrink-0">
-                <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-              </div>
-              <div className="ml-4 text-left">
-                <div className="text-2xl font-bold text-slate-800">{sales.length}</div>
-                <div className="text-sm text-slate-600">Ventes</div>
-              </div>
-            </div>
-            {/* Rentals Stat */}
-            <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-lg flex items-center shadow-sm">
-              <div className="flex-shrink-0">
-                <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-              </div>
-              <div className="ml-4 text-left">
-                <div className="text-2xl font-bold text-slate-800">{rentals.length}</div>
-                <div className="text-sm text-slate-600">Locations</div>
-              </div>
-            </div>
-            {/* Tasks Stat */}
-            <div className="bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded-lg flex items-center shadow-sm">
-              <div className="flex-shrink-0">
-                <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              </div>
-              <div className="ml-4 text-left">
-                <div className="text-2xl font-bold text-slate-800">{filteredTasks.length}</div>
-                <div className="text-sm text-slate-600">Tâches</div>
-              </div>
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Retour
+              </Button>
             </div>
           </div>
-          
-          {dataLoadingError && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-              <div className="flex items-center">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <Card className="p-4 border border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-8 bg-blue-500 rounded"></div>
+                <div>
+                  <div className="text-2xl font-bold text-black">{stats.appointments}</div>
+                  <div className="text-sm text-gray-600">Rendez-vous</div>
+                </div>
+              </div>
+            </Card>
+            
+            <Card className="p-4 border border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-8 bg-green-500 rounded"></div>
+                <div>
+                  <div className="text-2xl font-bold text-black">{stats.rentals}</div>
+                  <div className="text-sm text-gray-600">Locations</div>
+                </div>
+              </div>
+            </Card>
+            
+            <Card className="p-4 border border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-8 bg-purple-500 rounded"></div>
+                <div>
+                  <div className="text-2xl font-bold text-black">{stats.sales}</div>
+                  <div className="text-sm text-gray-600">Ventes</div>
+                </div>
+              </div>
+            </Card>
+            
+            <Card className="p-4 border border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-8 bg-orange-500 rounded"></div>
+                <div>
+                  <div className="text-2xl font-bold text-black">{stats.diagnostics}</div>
+                  <div className="text-sm text-gray-600">Diagnostics</div>
+                </div>
+              </div>
+            </Card>
+            
+            <Card className="p-4 border border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-8 bg-red-500 rounded"></div>
+                <div>
+                  <div className="text-2xl font-bold text-black">{stats.overduePayments}</div>
+                  <div className="text-sm text-gray-600">Paiements en retard</div>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                {dataLoadingError}
+                {error}
               </div>
             </div>
           )}
         </div>
 
-        <CalendarHeader
-          currentDate={currentDate}
-          onPrevMonth={handlePrevMonth}
-          onNextMonth={handleNextMonth}
-          onToday={handleToday}
-          filter={filter}
-          onFilterChange={handleFilterChange}
-          onAddTask={() => setShowAddTaskModal(true)}
-          onToggleView={handleToggleView}
-          isCalendarView={isCalendarView}
-          onBack={handleBack}
+        {/* Calendar */}
+        <NewCalendar
+          events={events}
+          onEventClick={handleEventClick}
+          onDateClick={handleDateClick}
+          onRefresh={handleRefresh}
+          loading={loading}
         />
 
-        {showNotifications && (
-          <NotificationBar
-            tasks={filteredTasks}
-            onTaskClick={handleTaskClick}
-            onToggleTask={handleToggleTask}
-            onDismiss={handleNotificationDismiss}
-          />
-        )}
-
-        {isCalendarView ? (
-          <CalendarGrid
-            currentDate={currentDate}
-            tasks={filteredTasks}
-            onTaskClick={handleTaskClick}
-            onDayClick={handleDayClick}
-            onToggleTask={handleToggleTask}
-          />
-        ) : (
-          <TaskList
-            tasks={filteredTasks}
-            onTaskClick={handleTaskClick}
-            onToggleTask={handleToggleTask}
-            onDeleteTask={handleDeleteTask}
-          />
-        )}
-
-        <AddTaskModal
-          isOpen={showAddTaskModal}
-          onClose={() => {
-            setShowAddTaskModal(false);
-            setSelectedDate(null);
-          }}
-          onAdd={handleAddTask}
-          selectedDate={selectedDate || undefined}
+        {/* Notifications */}
+        <CalendarNotifications
+          notifications={notifications}
+          onNotificationClick={handleNotificationClick}
+          onDismiss={handleNotificationDismiss}
+          onDismissAll={handleNotificationDismissAll}
         />
-
-        <TaskDetailsModal
-          task={selectedTask}
-          isOpen={showTaskDetailsModal}
-          onClose={handleTaskDetailsClose}
-          onToggle={handleToggleTask}
-          onDelete={handleDeleteTask}
-        />
-
-        {/* Quick Actions */}
-        <div className="fixed bottom-6 right-6 flex flex-col gap-2">
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className={`p-3 rounded-full shadow-lg transition-all ${
-              showNotifications 
-                ? 'bg-yellow-500 text-white hover:bg-yellow-600' 
-                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-            }`}
-            title={showNotifications ? 'Masquer les notifications' : 'Afficher les notifications'}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-          </button>
-
-          <button
-            onClick={() => setShowAddTaskModal(true)}
-            className="p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all"
-            title="Ajouter une tâche"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
-        </div>
       </div>
     </div>
   );

@@ -26,17 +26,6 @@ type RentalItemData = {
   payments: PaymentData[];
 };
 
-// RentalGroup data structure for API request
-type RentalGroupData = {
-  name: string;
-  description?: string;
-  totalPrice: number;
-  startDate: string;
-  endDate: string;
-  notes?: string;
-  items: RentalItemData[];
-  sharedPayments: PaymentData[];
-};
 
 // Payment data structure for API request
 type PaymentData = {
@@ -60,7 +49,53 @@ type PaymentData = {
   notes?: string;
 };
 
-// Rental request data structure
+// Simple rental form data structure
+type SimpleRentalFormData = {
+  patientId: string;
+  startDate: string;
+  endDate?: string | null;
+  contractNumber: string;
+  notes?: string;
+  amount: number;
+  type: SALETYPE;
+  status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+  returnStatus: 'NOT_RETURNED' | 'RETURNED' | 'PARTIALLY_RETURNED' | 'DAMAGED';
+  actualReturnDate?: string;
+  devices: {
+    name: string;
+    model: string;
+    serialNumber: string;
+    notes?: string;
+  }[];
+  accessories: {
+    name: string;
+    model: string;
+    isFree: boolean;
+    notes?: string;
+  }[];
+  payments: {
+    type: SALETYPE;
+    amount: number;
+    dueDate?: string;
+    cnamStatus?: string;
+    cnamSupportAmount?: number;
+    cnamDebutDate?: string;
+    cnamEndDate?: string;
+    cnamSupportMonths?: number;
+    // Cash payment specific fields
+    cashTotal?: number;
+    cashAcompte?: number;
+    cashRest?: number;
+    cashRestDate?: string;
+    notes?: string;
+    alerts?: {
+      date: string;
+      note?: string;
+    }[];
+  }[];
+};
+
+// Legacy complex rental request data structure (for backward compatibility)
 type RentalRequestData = {
   patientId: string;
   startDate: string;
@@ -70,7 +105,6 @@ type RentalRequestData = {
   returnStatus: RETURN_STATUS;
   notes?: string;
   rentalItems: RentalItemData[];
-  rentalGroups?: RentalGroupData[];
 };
 
 // Helper function to get outstanding balances (moved from export)
@@ -126,8 +160,252 @@ export async function POST(request: Request) {
       );
     }
     
-    const body = await request.json() as RentalRequestData;
+    const body = await request.json();
     
+    // Check if it's the simple rental form data (has contractNumber and devices/accessories arrays)
+    if ('contractNumber' in body && 'devices' in body && 'accessories' in body) {
+      return handleSimpleRentalForm(body as SimpleRentalFormData, currentUser);
+    }
+    
+    // Legacy complex rental handling
+    return handleComplexRental(body as RentalRequestData, currentUser);
+  } catch (error) {
+    console.error('Error creating rental:', error);
+    return NextResponse.json(
+      { message: 'Une erreur est survenue lors de la création de la location', error: String(error) },
+      { status: 500 }
+    );
+  }
+}
+
+// Handle simple rental form submission
+async function handleSimpleRentalForm(body: SimpleRentalFormData, currentUser: any) {
+  const { 
+    patientId, 
+    startDate, 
+    endDate, 
+    contractNumber,
+    notes,
+    amount,
+    type,
+    status,
+    returnStatus,
+    actualReturnDate,
+    devices,
+    accessories,
+    payments
+  } = body;
+
+  // Validate required fields
+  if (!patientId || !startDate || !contractNumber || amount === undefined) {
+    return NextResponse.json(
+      { message: 'Tous les champs obligatoires doivent être remplis' },
+      { status: 400 }
+    );
+  }
+
+  // Validate that at least one device or accessory is included
+  if (devices.length === 0 && accessories.length === 0) {
+    return NextResponse.json(
+      { message: 'La location doit contenir au moins un appareil ou accessoire' },
+      { status: 400 }
+    );
+  }
+
+  // Validate payments
+  if (payments.length === 0) {
+    return NextResponse.json(
+      { message: 'Au moins un paiement doit être défini' },
+      { status: 400 }
+    );
+  }
+
+  const totalPaymentAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+  if (Math.abs(totalPaymentAmount - amount) > 0.01) {
+    return NextResponse.json(
+      { message: 'Le montant total des paiements doit être égal au montant de la location' },
+      { status: 400 }
+    );
+  }
+
+  // Create the rental with simplified structure
+  const rental = await prisma.$transaction(async (tx) => {
+    // Create the rental data object
+    const rentalData: any = {
+      startDate: new Date(startDate),
+      amount: amount,
+      contractNumber: contractNumber,
+      status: status as TRANSACTION_STATUS,
+      returnStatus: returnStatus as RETURN_STATUS,
+      actualReturnDate: actualReturnDate ? new Date(actualReturnDate) : null,
+      type: type,
+      patient: {
+        connect: { id: patientId }
+      },
+      notes: notes || '',
+      createdBy: { connect: { id: currentUser.id } },
+    };
+
+    // Only add endDate if it's provided
+    if (endDate) {
+      rentalData.endDate = new Date(endDate);
+    }
+
+    const createdRental = await tx.rental.create({
+      data: rentalData,
+    });
+
+    // Create devices and rental items
+    for (const deviceData of devices) {
+      if (deviceData.name.trim()) {
+        // Create device
+        const device = await tx.device.create({
+          data: {
+            name: deviceData.name,
+            model: deviceData.model,
+            serialNumber: deviceData.serialNumber,
+            notes: deviceData.notes,
+            rental: { connect: { id: createdRental.id } }
+          }
+        });
+
+        // Create rental item for device
+        const deviceRentalItemData: any = {
+          itemType: 'DEVICE',
+          quantity: 1,
+          unitPrice: 0, // Simple rentals don't track individual item prices
+          totalPrice: 0,
+          startDate: new Date(startDate),
+          notes: deviceData.notes,
+          rental: { connect: { id: createdRental.id } },
+          device: { connect: { id: device.id } }
+        };
+
+        // Only add endDate if provided
+        if (endDate) {
+          deviceRentalItemData.endDate = new Date(endDate);
+        }
+
+        await tx.rentalItem.create({
+          data: deviceRentalItemData
+        });
+      }
+    }
+
+    // Create accessories and rental items
+    for (const accessoryData of accessories) {
+      if (accessoryData.name.trim()) {
+        // Create accessory
+        const accessory = await tx.accessory.create({
+          data: {
+            name: accessoryData.name,
+            model: accessoryData.model,
+            quantity: 1, // Default quantity
+            price: accessoryData.isFree ? 0 : 100, // Default price for paid accessories
+            notes: accessoryData.notes,
+            rental: { connect: { id: createdRental.id } }
+          }
+        });
+
+        // Create rental item for accessory
+        const accessoryRentalItemData: any = {
+          itemType: 'ACCESSORY',
+          quantity: 1,
+          unitPrice: accessoryData.isFree ? 0 : 100,
+          totalPrice: accessoryData.isFree ? 0 : 100,
+          startDate: new Date(startDate),
+          notes: accessoryData.notes,
+          rental: { connect: { id: createdRental.id } },
+          accessory: { connect: { id: accessory.id } }
+        };
+
+        // Only add endDate if provided
+        if (endDate) {
+          accessoryRentalItemData.endDate = new Date(endDate);
+        }
+
+        await tx.rentalItem.create({
+          data: accessoryRentalItemData
+        });
+      }
+    }
+
+    // Create payments
+    for (const paymentData of payments) {
+      const createdPayment = await tx.payment.create({
+        data: {
+          amount: paymentData.amount,
+          type: paymentData.type,
+          paymentDate: new Date(),
+          dueDate: paymentData.dueDate ? new Date(paymentData.dueDate) : new Date(),
+          cnamStatus: paymentData.cnamStatus,
+          cnamSupportAmount: paymentData.cnamSupportAmount,
+          cnamDebutDate: paymentData.cnamDebutDate ? new Date(paymentData.cnamDebutDate) : undefined,
+          cnamEndDate: paymentData.cnamEndDate ? new Date(paymentData.cnamEndDate) : undefined,
+          cnamSupportMonths: paymentData.cnamSupportMonths,
+          // Cash payment specific fields
+          cashTotal: paymentData.cashTotal,
+          cashAcompte: paymentData.cashAcompte,
+          cashRest: paymentData.cashRest,
+          cashRestDate: paymentData.cashRestDate ? new Date(paymentData.cashRestDate) : undefined,
+          notes: paymentData.notes,
+          rental: { connect: { id: createdRental.id } },
+        }
+      });
+
+      // Create payment alerts if any
+      if (paymentData.alerts && paymentData.alerts.length > 0) {
+        for (const alertData of paymentData.alerts) {
+          if (alertData.date && alertData.note) {
+            await tx.paymentAlert.create({
+              data: {
+                date: new Date(alertData.date),
+                note: alertData.note,
+                payment: { connect: { id: createdPayment.id } },
+              }
+            });
+          }
+        }
+      }
+    }
+
+    return createdRental;
+  });
+
+  // Fetch the complete rental with related data
+  const completeRental = await prisma.rental.findUnique({
+    where: { id: rental.id },
+    include: {
+      patient: {
+        select: {
+          id: true,
+          fullName: true,
+          phone: true,
+          region: true,
+          address: true,
+          doctorName: true,
+        }
+      },
+      devices: true,
+      accessories: true,
+      payments: {
+        include: {
+          alerts: true
+        },
+        orderBy: { paymentDate: 'asc' }
+      }
+    }
+  });
+
+  return NextResponse.json({
+    success: true,
+    data: completeRental
+  });
+}
+
+// Handle complex legacy rental (keep existing logic)
+async function handleComplexRental(body: RentalRequestData, currentUser: any) {
+  try {
     const { 
       patientId, 
       startDate, 
@@ -136,8 +414,7 @@ export async function POST(request: Request) {
       status, 
       returnStatus, 
       notes,
-      rentalItems = [],
-      rentalGroups = []
+      rentalItems = []
     } = body;
 
     // Validate required fields
@@ -148,10 +425,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate that at least one rental item or group is included
-    if (rentalItems.length === 0 && rentalGroups.length === 0) {
+    // Validate that at least one rental item is included
+    if (rentalItems.length === 0) {
       return NextResponse.json(
-        { message: 'La location doit contenir au moins un élément ou un groupe' },
+        { message: 'La location doit contenir au moins un élément' },
         { status: 400 }
       );
     }
@@ -179,45 +456,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // Validate rental groups
-    for (const group of rentalGroups) {
-      if (!group.name || group.totalPrice <= 0) {
-        return NextResponse.json(
-          { message: 'Chaque groupe doit avoir un nom et un prix total supérieur à 0' },
-          { status: 400 }
-        );
-      }
-      
-      // Validate that group has payments (either shared or individual item payments) for paid items
-      const hasSharedPayments = group.sharedPayments && group.sharedPayments.length > 0;
-      const hasItemPayments = group.items.some(item => 
-        item.totalPrice > 0 && item.payments && item.payments.length > 0
-      );
-      const hasPaidItems = group.items.some(item => item.totalPrice > 0);
-      
-      // Only require payments if group has paid items
-      if (hasPaidItems && !hasSharedPayments && !hasItemPayments) {
-        return NextResponse.json(
-          { message: 'Chaque groupe contenant des éléments payants doit avoir au moins un paiement partagé ou des paiements individuels' },
-          { status: 400 }
-        );
-      }
-    }
 
     // Calculate total amount from all payments
-    const itemsPaymentAmount = rentalItems.reduce((total: number, item: RentalItemData) => {
+    const totalPaymentAmount = rentalItems.reduce((total: number, item: RentalItemData) => {
       return total + item.payments.reduce((itemTotal: number, payment: PaymentData) => itemTotal + payment.amount, 0);
     }, 0);
-
-    const groupsPaymentAmount = rentalGroups.reduce((total: number, group: RentalGroupData) => {
-      const itemPayments = group.items.reduce((itemTotal: number, item: RentalItemData) => {
-        return itemTotal + item.payments.reduce((paymentTotal: number, payment: PaymentData) => paymentTotal + payment.amount, 0);
-      }, 0);
-      const sharedPayments = group.sharedPayments.reduce((sharedTotal: number, payment: PaymentData) => sharedTotal + payment.amount, 0);
-      return total + itemPayments + sharedPayments;
-    }, 0);
-
-    const totalPaymentAmount = itemsPaymentAmount + groupsPaymentAmount;
 
     if (Math.abs(totalPaymentAmount - amount) > 0.01) {
       return NextResponse.json(
@@ -236,7 +479,7 @@ export async function POST(request: Request) {
           amount: amount,
           status: status || TRANSACTION_STATUS.PENDING,
           returnStatus: returnStatus as RETURN_STATUS || RETURN_STATUS.NOT_RETURNED,
-          type: (rentalItems[0]?.payments[0]?.method || rentalGroups[0]?.sharedPayments[0]?.method) || SALETYPE.CASH,
+          type: rentalItems[0]?.payments[0]?.method || SALETYPE.CASH,
           patient: {
             connect: { id: patientId }
           },
@@ -284,7 +527,7 @@ export async function POST(request: Request) {
       };
 
       // Helper function to create payment with overdue tracking
-      const createPaymentWithOverdueTracking = async (payment: PaymentData, rentalId: string, rentalItemId?: string, rentalGroupId?: string) => {
+      const createPaymentWithOverdueTracking = async (payment: PaymentData, rentalId: string, rentalItemId?: string) => {
         const overdueInfo = calculateOverdueInfo(payment);
         
         return await tx.payment.create({
@@ -307,84 +550,10 @@ export async function POST(request: Request) {
             notes: payment.notes,
             rental: { connect: { id: rentalId } },
             rentalItem: rentalItemId ? { connect: { id: rentalItemId } } : undefined,
-            rentalGroup: rentalGroupId ? { connect: { id: rentalGroupId } } : undefined,
           }
         });
       };
 
-      // Create rental groups first
-      for (const groupData of rentalGroups) {
-        const rentalGroup = await tx.rentalGroup.create({
-          data: {
-            name: groupData.name,
-            description: groupData.description,
-            totalPrice: groupData.totalPrice,
-            startDate: new Date(groupData.startDate),
-            endDate: new Date(groupData.endDate),
-            notes: groupData.notes,
-            rental: { connect: { id: createdRental.id } }
-          }
-        });
-
-        // Create items within the group
-        for (const itemData of groupData.items) {
-          let deviceId: string | undefined;
-          let accessoryId: string | undefined;
-
-          // Create device if it's a device item
-          if (itemData.itemType === RENTAL_ITEM_TYPE.DEVICE && itemData.deviceData) {
-            const device = await tx.device.create({
-              data: {
-                name: itemData.deviceData.name,
-                model: itemData.deviceData.model,
-                serialNumber: itemData.deviceData.serialNumber,
-                rental: { connect: { id: createdRental.id } }
-              }
-            });
-            deviceId = device.id;
-          }
-
-          // Create accessory if it's an accessory item
-          if (itemData.itemType === RENTAL_ITEM_TYPE.ACCESSORY && itemData.accessoryData) {
-            const accessory = await tx.accessory.create({
-              data: {
-                name: itemData.accessoryData.name,
-                model: itemData.accessoryData.model,
-                quantity: itemData.quantity,
-                rental: { connect: { id: createdRental.id } }
-              }
-            });
-            accessoryId = accessory.id;
-          }
-
-          // Create rental item within the group
-          const rentalItem = await tx.rentalItem.create({
-            data: {
-              itemType: itemData.itemType,
-              quantity: itemData.quantity,
-              unitPrice: itemData.unitPrice,
-              totalPrice: itemData.totalPrice,
-              startDate: new Date(itemData.startDate),
-              endDate: new Date(itemData.endDate),
-              notes: itemData.notes,
-              rental: { connect: { id: createdRental.id } },
-              rentalGroup: { connect: { id: rentalGroup.id } },
-              device: deviceId ? { connect: { id: deviceId } } : undefined,
-              accessory: accessoryId ? { connect: { id: accessoryId } } : undefined,
-            }
-          });
-
-          // Create payments for this rental item
-          for (const payment of itemData.payments) {
-            await createPaymentWithOverdueTracking(payment, createdRental.id, rentalItem.id, rentalGroup.id);
-          }
-        }
-
-        // Create shared payments for the group
-        for (const payment of groupData.sharedPayments) {
-          await createPaymentWithOverdueTracking(payment, createdRental.id, undefined, rentalGroup.id);
-        }
-      }
 
       // Create individual rental items (not in groups)
       for (const itemData of rentalItems) {
@@ -475,6 +644,9 @@ export async function POST(request: Request) {
         devices: true,
         accessories: true,
         payments: {
+          include: {
+            alerts: true
+          },
           orderBy: { paymentDate: 'asc' }
         },
         rentalItems: {
@@ -482,6 +654,9 @@ export async function POST(request: Request) {
             device: true,
             accessory: true,
             payments: {
+              include: {
+                alerts: true
+              },
               orderBy: { paymentDate: 'asc' }
             }
           }
@@ -588,6 +763,9 @@ export async function GET(request: Request) {
         devices: true,
         accessories: true,
         payments: {
+          include: {
+            alerts: true
+          },
           orderBy: { paymentDate: 'asc' }
         },
         rentalItems: {
@@ -595,22 +773,9 @@ export async function GET(request: Request) {
             device: true,
             accessory: true,
             payments: {
-              orderBy: { paymentDate: 'asc' }
-            }
-          }
-        },
-        rentalGroups: {
-          include: {
-            rentalItems: {
               include: {
-                device: true,
-                accessory: true,
-                payments: {
-                  orderBy: { paymentDate: 'asc' }
-                }
-              }
-            },
-            payments: {
+                alerts: true
+              },
               orderBy: { paymentDate: 'asc' }
             }
           }

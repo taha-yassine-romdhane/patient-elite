@@ -67,8 +67,10 @@ export default function PatientCreationModal({
   return (
     <Modal 
       isOpen={isOpen} 
-      onClose={onClose} 
-      title=""
+      onClose={onClose}
+      title="Nouveau Patient"
+      size="lg"
+      className="max-h-[90vh]"
     >
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-md">

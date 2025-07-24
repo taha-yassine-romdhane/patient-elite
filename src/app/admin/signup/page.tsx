@@ -2,6 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowLeft, UserPlus, Loader2 } from "lucide-react";
 
 export default function AdminSignupPage() {
   const [formData, setFormData] = useState({
@@ -103,164 +110,159 @@ export default function AdminSignupPage() {
               <h1 className="text-3xl font-bold text-gray-900">Créer un Utilisateur</h1>
               <p className="text-gray-600 mt-1">Ajouter un nouveau compte utilisateur au système</p>
             </div>
-            <button
-              onClick={() => router.push('/admin/dashboard')}
-              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center"
+            <Button
+              variant="outline"
+              onClick={() => router.push('/admin/users')}
+              className="border-gray-300 hover:bg-gray-100"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Retour au tableau de bord
-            </button>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Retour aux utilisateurs
+            </Button>
           </div>
         </div>
       </div>
 
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-lg shadow-sm p-8">
-            <div className="text-center mb-8">
-              <div className="bg-cyan-100 rounded-full p-3 w-16 h-16 mx-auto mb-4">
-                <svg className="w-10 h-10 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                </svg>
+          <Card className="border-gray-200">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                <UserPlus className="w-8 h-8 text-gray-700" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900">Nouveau Compte</h2>
-              <p className="text-gray-600 mt-2">Remplissez les informations ci-dessous</p>
-            </div>
+              <CardTitle className="text-2xl font-bold">Nouveau Compte</CardTitle>
+              <CardDescription>Remplissez les informations ci-dessous</CardDescription>
+            </CardHeader>
+            <CardContent>
 
-            {/* Success Message */}
-            {success && (
-              <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg">
-                <div className="flex items-center">
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  {success}
+              {/* Success Message */}
+              {success && (
+                <Alert className="mb-6 bg-green-50 border-green-200">
+                  <AlertDescription>
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {success}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Error Message */}
+              {error && (
+                <Alert className="mb-6 bg-red-50 border-red-200">
+                  <AlertDescription>
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {error}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-8">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-sm font-medium">Nom complet</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="Entrez le nom complet"
+                    required
+                    className="h-11"
+                  />
                 </div>
-              </div>
-            )}
 
-            {/* Error Message */}
-            {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-                <div className="flex items-center">
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {error}
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-medium">Adresse email</Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="exemple@email.com"
+                    required
+                    className="h-11"
+                  />
                 </div>
-              </div>
-            )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                  Nom complet
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                  placeholder="Entrez le nom complet"
-                  required
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role" className="text-sm font-medium">Rôle</Label>
+                  <Select 
+                    name="role" 
+                    value={formData.role} 
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Sélectionner un rôle" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EMPLOYEE">Employé</SelectItem>
+                      <SelectItem value="ADMIN">Administrateur</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Adresse email
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                  placeholder="exemple@email.com"
-                  required
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-sm font-medium">Mot de passe</Label>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="Minimum 6 caractères"
+                    required
+                    className="h-11"
+                  />
+                </div>
 
-              <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-                  Rôle
-                </label>
-                <select
-                  id="role"
-                  name="role"
-                  value={formData.role}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirmer le mot de passe</Label>
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    placeholder="Répétez le mot de passe"
+                    required
+                    className="h-11"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-black  mt-6 text-white hover:bg-gray-800 disabled:opacity-50"
                 >
-                  <option value="EMPLOYEE">Employé</option>
-                  <option value="ADMIN">Administrateur</option>
-                </select>
+                  {isLoading ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Création en cours...
+                    </div>
+                  ) : (
+                    "Créer le compte"
+                  )}
+                </Button>
+              </form>
+
+              <div className="mt-6 pt-6 text-center">
+                <Button
+                  variant="link"
+                  onClick={() => router.push('/admin/users')}
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  Voir tous les utilisateurs
+                </Button>
               </div>
-
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                  Mot de passe
-                </label>
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                  placeholder="Minimum 6 caractères"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirmer le mot de passe
-                </label>
-                <input
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                  placeholder="Répétez le mot de passe"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-cyan-600 text-white py-2 px-4 rounded-lg hover:bg-cyan-700 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isLoading ? (
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                    Création en cours...
-                  </div>
-                ) : (
-                  "Créer le compte"
-                )}
-              </button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => router.push('/admin/users')}
-                className="text-cyan-600 hover:text-cyan-700 text-sm font-medium"
-              >
-                Voir tous les utilisateurs
-              </button>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
   );
-} 
+}

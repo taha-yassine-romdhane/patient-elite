@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
+import { Button } from '@/components/ui/button';
+import { Menu, X, Home, LogOut } from 'lucide-react';
 
 const Navbar = () => {
   const { data: session, status } = useSession();
@@ -16,111 +18,128 @@ const Navbar = () => {
   };
 
   // If user is not logged in, don't show navbar
-  if (status === 'loading' || !session) {
+  if (status === 'loading') {
+    return null;
+  }
+  
+  if (!session) {
     return null;
   }
 
+
   return (
-    <nav className="bg-blue-600 text-white shadow-md fixed w-full z-10">
+    <nav className="bg-black text-white shadow-lg fixed w-full z-10 border-b border-gray-800">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <Link href="/" className="text-2xl font-bold">
+          <Link href="/" className="text-2xl font-bold hover:text-gray-300 transition-colors">
             Patients Elite
           </Link>
           
           {/* Desktop Navigation */}
-          <div className="hidden md:flex space-x-4 items-center">
-            <Link 
-              href="/" 
-              className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 ${pathname === '/' ? 'bg-blue-700' : ''}`}
+          <div className="hidden md:flex space-x-3 items-center">
+            <Button
+              variant={pathname === '/' ? 'secondary' : 'ghost'}
+              size="sm"
+              asChild
+              className={pathname === '/' ? 'bg-gray-800 text-white hover:bg-gray-700' : 'text-white hover:bg-gray-800 hover:text-white'}
             >
-              Accueil
-            </Link>
+              <Link href="/" className="flex items-center gap-2">
+                <Home className="h-4 w-4" />
+                Accueil
+              </Link>
+            </Button>
             
             {user && (
-              <button 
+              <Button 
+                variant="outline"
+                size="sm"
                 onClick={handleLogout}
-                className="ml-4 px-4 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+                className="ml-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white hover:border-red-500 flex items-center gap-2"
               >
+                <LogOut className="h-4 w-4" />
                 Déconnexion
-              </button>
+              </Button>
             )}
             
             {!user && (
-              <Link 
-                href="/login" 
-                className="ml-4 px-4 py-2 rounded-md bg-blue-800 text-white text-sm font-medium hover:bg-blue-900"
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                className="ml-2 border-gray-600 text-white hover:bg-white hover:text-black"
               >
-                Connexion
-              </Link>
+                <Link href="/login">
+                  Connexion
+                </Link>
+              </Button>
             )}
           </div>
           
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-white hover:bg-blue-700 focus:outline-none"
+              className="text-white hover:bg-gray-800 hover:text-white p-2"
             >
-              <svg
-                className="h-6 w-6"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                {isMenuOpen ? (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                ) : (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                )}
-              </svg>
-            </button>
+              {isMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
+            </Button>
           </div>
         </div>
       </div>
       
       {/* Mobile menu */}
       {isMenuOpen && (
-        <div className="md:hidden bg-blue-700 pb-4 px-4">
-          <Link 
-            href="/" 
-            className="block px-3 py-2 rounded-md text-base font-medium hover:bg-blue-600 mt-1"
+        <div className="md:hidden bg-gray-900 pb-4 px-4 border-t border-gray-800">
+          <Button
+            variant={pathname === '/' ? 'secondary' : 'ghost'}
+            size="sm"
+            asChild
+            className={`w-full justify-start mt-2 ${
+              pathname === '/' 
+                ? 'bg-gray-800 text-white hover:bg-gray-700' 
+                : 'text-white hover:bg-gray-800 hover:text-white'
+            }`}
             onClick={() => setIsMenuOpen(false)}
           >
-            Accueil
-          </Link>
+            <Link href="/" className="flex items-center gap-2">
+              <Home className="h-4 w-4" />
+              Accueil
+            </Link>
+          </Button>
           
           {user && (
-            <button 
+            <Button 
+              variant="outline"
+              size="sm"
               onClick={() => {
                 handleLogout();
                 setIsMenuOpen(false);
               }}
-              className="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-red-600 hover:bg-red-700 mt-2"
+              className="w-full justify-start mt-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white hover:border-red-500 flex items-center gap-2"
             >
+              <LogOut className="h-4 w-4" />
               Déconnexion
-            </button>
+            </Button>
           )}
           
           {!user && (
-            <Link 
-              href="/login" 
-              className="block px-3 py-2 rounded-md text-base font-medium bg-blue-800 hover:bg-blue-900 mt-2"
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="w-full justify-start mt-2 border-gray-600 text-white hover:bg-white hover:text-black"
               onClick={() => setIsMenuOpen(false)}
             >
-              Connexion
-            </Link>
+              <Link href="/login">
+                Connexion
+              </Link>
+            </Button>
           )}
         </div>
       )}

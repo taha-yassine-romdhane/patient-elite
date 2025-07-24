@@ -10,8 +10,8 @@ export default withAuth(
     // Role-based access control
     // If the user is trying to access an admin route and doesn't have the ADMIN role
     if (path.startsWith('/admin') && token?.role !== 'ADMIN') {
-      // Redirect them to the root page, which will then redirect to the correct dashboard.
-      return NextResponse.redirect(new URL('/', req.url));
+      // Redirect them to employee dashboard if they're not an admin
+      return NextResponse.redirect(new URL('/employee/dashboard', req.url));
     }
 
     // Allow the request to proceed

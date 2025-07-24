@@ -3,6 +3,11 @@
 import { useState, useEffect } from "react";
 import Stepper from "@/components/ui/Stepper";
 import PatientCreationModal from "@/components/patients/PatientCreationModal";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Technician } from "@prisma/client";
@@ -111,6 +116,20 @@ export default function DiagnosticStepper() {
 
   const handleDiagnosticChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    setDiagnosticData({
+      ...diagnosticData,
+      [name]: value,
+    });
+  };
+
+  const handleDateChange = (value: string) => {
+    setDiagnosticData({
+      ...diagnosticData,
+      date: value,
+    });
+  };
+
+  const handleSelectChange = (name: string, value: string) => {
     setDiagnosticData({
       ...diagnosticData,
       [name]: value,
@@ -406,33 +425,32 @@ export default function DiagnosticStepper() {
                   {/* Date and Polygraph */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="block text-sm font-semibold text-slate-700">
-                        Date du diagnostic
-                      </label>
-                      <input
-                        type="date"
-                        name="date"
+                      <DatePicker
+                        label="Date du diagnostic"
                         value={diagnosticData.date}
-                        onChange={handleDiagnosticChange}
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-slate-700"
+                        onChange={handleDateChange}
+                        placeholder="jj/mm/aaaa"
+                        className="px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
                         required
                       />
                     </div>
                     
                     <div className="space-y-2">
-                      <label className="block text-sm font-semibold text-slate-700">
+                      <Label className="text-sm font-semibold text-slate-700">
                         Type de polygraphe
-                      </label>
-                      <select
-                        name="polygraph"
+                      </Label>
+                      <Select
                         value={diagnosticData.polygraph}
-                        onChange={handleDiagnosticChange}
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-slate-700"
-                        required
+                        onValueChange={(value) => handleSelectChange('polygraph', value)}
                       >
-                        <option value="NOX">NOX</option>
-                        <option value="PORTI">PORTI</option>
-                      </select>
+                        <SelectTrigger className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200">
+                          <SelectValue placeholder="Sélectionnez un polygraphe" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NOX">NOX</SelectItem>
+                          <SelectItem value="PORTI">PORTI</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
@@ -447,10 +465,10 @@ export default function DiagnosticStepper() {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-slate-700">
+                        <Label className="text-sm font-semibold text-slate-700">
                           Indice d&apos;Apnée-Hypopnée (IAH)
-                        </label>
-                        <input
+                        </Label>
+                        <Input
                           type="number"
                           step="0.1"
                           min="0"
@@ -458,7 +476,7 @@ export default function DiagnosticStepper() {
                           name="iahResult"
                           value={diagnosticData.iahResult}
                           onChange={handleDiagnosticChange}
-                          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-slate-700"
+                          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
                           placeholder="Ex: 25.3"
                           required
                         />
@@ -466,17 +484,17 @@ export default function DiagnosticStepper() {
                       </div>
                       
                       <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-slate-700">
+                        <Label className="text-sm font-semibold text-slate-700">
                           Indice de Désaturation (ID)
-                        </label>
-                        <input
+                        </Label>
+                        <Input
                           type="number"
                           step="0.1"
                           min="0"
                           name="idResult"
                           value={diagnosticData.idResult}
                           onChange={handleDiagnosticChange}
-                          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-slate-700"
+                          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
                           placeholder="Ex: 18.7"
                           required
                         />
@@ -521,14 +539,14 @@ export default function DiagnosticStepper() {
 
                   {/* Remarks */}
                   <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-slate-700">
+                    <Label className="text-sm font-semibold text-slate-700">
                       Remarques et observations
-                    </label>
-                    <textarea
+                    </Label>
+                    <Textarea
                       name="remarks"
                       value={diagnosticData.remarks}
                       onChange={handleDiagnosticChange}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-slate-700 resize-none"
+                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 resize-none"
                       rows={4}
                       placeholder="Ajoutez vos observations cliniques, recommandations ou notes particulières..."
                     />

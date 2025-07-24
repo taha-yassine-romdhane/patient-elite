@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn, getSession } from "next-auth/react";
+import { signIn, getSession, signOut, useSession } from "next-auth/react";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -12,6 +12,7 @@ export default function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
 
   useEffect(() => {
     // Check if user was redirected from signup page
@@ -43,11 +44,11 @@ export default function LoginForm() {
         // Get the session to check user role
         const session = await getSession();
         
-        // Redirect based on role
+        // Force page reload to ensure session is properly loaded
         if (session?.user?.role === "ADMIN") {
-          router.push("/admin/dashboard");
+          window.location.href = "/admin/dashboard";
         } else {
-          router.push("/employee/dashboard");
+          window.location.href = "/employee/dashboard";
         }
       }
     } catch (err: unknown) {
@@ -129,6 +130,17 @@ export default function LoginForm() {
           </div>
           
           <div className="text-center mt-6">
+            {session && (
+              <div className="text-sm text-gray-600 mb-4">
+                <p>Vous êtes déjà connecté. Si vous voulez changer de compte,</p>
+                <button
+                  onClick={() => signOut({ callbackUrl: '/login' })}
+                  className="text-red-600 hover:text-red-800 underline"
+                >
+                  cliquez ici pour vous déconnecter
+                </button>
+              </div>
+            )}
           </div>
         </form>
       </div>

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import "./globals.css";
-import Navbar from "@/components/Navbar";
+import ConditionalNavbar from "@/components/ConditionalNavbar";
 import Providers from "./providers";
 import AuthGuard from "@/components/AuthGuard";
 
@@ -22,10 +22,8 @@ export default function RootLayout({
       <body className={`${inter.className} bg-gray-50 min-h-screen`}>
         <Providers>
           <AuthGuard>
-            <Navbar />
-            <main className="pt-16">
-              {children}
-            </main>
+            <ConditionalNavbar />
+            {children}
           </AuthGuard>
         </Providers>
       </body>

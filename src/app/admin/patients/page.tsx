@@ -5,16 +5,18 @@ import Link from "next/link";
 import { Activity, AlertCircle } from "lucide-react";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { Technician } from "@prisma/client";
-import PatientForm, { PatientFormData } from "@/components/PatientForm";
-import Modal from "@/components/ui/Modal";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import PatientEditModal from "@/components/patients/PatientEditModal";
+import PatientFormDialog from "@/components/patients/PatientFormDialog";
 import PatientFilters from "@/components/patients/PatientFilters";
 import PatientStatsHeader from "@/components/patients/PatientStatsHeader";
 import PatientTable from "@/components/patients/PatientTable";
 import Pagination from "@/components/patients/Pagination";
 import DeleteConfirmationModal from "@/components/patients/DeleteConfirmationModal";
+import ExcelImportExport from "@/components/admin/patients/ExcelImportExport";
 import { calculateIAHSeverity } from "@/utils/diagnosticUtils";
 import { ExtendedPatient, Patient, ActivityStats } from "@/types/patient";
+import { PatientFormData } from "@/components/PatientForm";
 
 // Format date function
 const formatDate = (dateString: string): string => {
@@ -311,6 +313,7 @@ export default function PatientsPage() {
     setIsLoading(true);
     
     try {
+      console.log('Submitting patient data:', patientData);
       const response = await fetchWithAuth("/api/patients", {
         method: "POST",
         headers: {
@@ -324,13 +327,60 @@ export default function PatientsPage() {
         throw new Error(errorData.message || "Erreur lors de l'ajout du patient");
       }
       
+      const newPatient = await response.json();
+      console.log('Patient created successfully:', newPatient);
+      
       setShowAddPatientModal(false);
       fetchPatientsWithAggregatedData();
     } catch (err: unknown) {
+      console.error('Error creating patient:', err);
       if (err instanceof Error) {
         setError(err.message);
       } else {
         setError("Une erreur est survenue");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBulkImport = async (patientsData: PatientFormData[]) => {
+    setIsLoading(true);
+    try {
+      const results = await Promise.allSettled(
+        patientsData.map(patientData =>
+          fetchWithAuth("/api/patients", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(patientData),
+          }).then(res => {
+            if (!res.ok) throw new Error(`Failed to create patient: ${patientData.fullName}`);
+            return res.json();
+          })
+        )
+      );
+
+      const successful = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+      
+      if (successful > 0) {
+        fetchPatientsWithAggregatedData();
+      }
+      
+      if (failed > 0) {
+        setError(`Import terminé: ${successful} réussis, ${failed} échoués`);
+      } else {
+        setError(`Import réussi: ${successful} patients importés`);
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (err: unknown) {
+      console.error('Bulk import error:', err);
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Erreur lors de l'import en masse");
       }
     } finally {
       setIsLoading(false);
@@ -415,19 +465,15 @@ export default function PatientsPage() {
 
   const renderAddPatientModal = () => {
     return (
-      <Modal 
-        isOpen={showAddPatientModal} 
-        onClose={() => setShowAddPatientModal(false)} 
+      <PatientFormDialog
+        isOpen={showAddPatientModal}
+        onClose={() => setShowAddPatientModal(false)}
         title="Ajouter un patient"
-      >
-        <PatientForm 
-          onSubmit={handleAddPatient}
-          onCancel={() => setShowAddPatientModal(false)}
-          isLoading={isLoading}
-          technicians={technicians}
-          currentTechnicianId={currentUserId}
-        />
-      </Modal>
+        onSubmit={handleAddPatient}
+        isLoading={isLoading}
+        technicians={technicians}
+        currentTechnicianId={currentUserId}
+      />
     );
   };
 
@@ -446,26 +492,34 @@ export default function PatientsPage() {
     );
   };
 
+  const activityStats = getActivityStats();
+
   if (isLoading && patients.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-          <div className="flex justify-center items-center h-64">
-            <div className="flex flex-col items-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-              <p className="text-slate-600 font-medium">Chargement des patients...</p>
-            </div>
+      <div className="flex h-full flex-1 flex-col">
+        <AdminPageHeader 
+          title="Gestion des patients" 
+          description="Chargement..."
+        />
+        <main className="flex-1 flex justify-center items-center">
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+            <p className="text-slate-600 font-medium">Chargement des patients...</p>
           </div>
-        </div>
+        </main>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-          <div className="p-6">
+      <div className="flex h-full flex-1 flex-col">
+        <AdminPageHeader 
+          title="Gestion des patients" 
+          description="Erreur lors du chargement"
+        />
+        <main className="flex-1 p-6">
+          <div className="container mx-auto max-w-7xl">
             <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-lg">
               <div className="flex">
                 <div className="flex-shrink-0">
@@ -477,33 +531,38 @@ export default function PatientsPage() {
               </div>
             </div>
           </div>
-        </div>
+        </main>
       </div>
     );
   }
 
-  const activityStats = getActivityStats();
-
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800">Gestion des patients</h1>
-          <p className="text-slate-600 mt-1">Vue d&apos;ensemble complète de tous vos patients</p>
-        </div>
+    <div className="flex h-full flex-1 flex-col">
+      <AdminPageHeader 
+        title="Gestion des patients" 
+        description="Vue d'ensemble complète de tous vos patients"
+      >
         <button
           onClick={() => setShowAddPatientModal(true)}
-          className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md"
+          className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors text-sm"
         >
           Ajouter un patient
         </button>
+      </AdminPageHeader>
 
-        <Link href="/admin/dashboard" className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md"> 
-          Retour à la page d&apos;accueil
-        </Link>
-      </div>
+      <main className="flex-1 p-6">
+        <div className="container mx-auto max-w-7xl space-y-6">
+          {/* Excel Import/Export Section */}
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6">
+            <ExcelImportExport 
+              patients={patients}
+              technicians={technicians}
+              onImport={handleBulkImport}
+              isLoading={isLoading}
+            />
+          </div>
 
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <PatientStatsHeader 
           filteredPatientsCount={filteredPatients.length}
           activityStats={activityStats}
@@ -570,18 +629,20 @@ export default function PatientsPage() {
               onPageChange={handlePageChange}
             />
           </>
-        )}
-      </div>
-      
-      {renderAddPatientModal()}
-      {renderEditPatientModal()}
+          )}
+          </div>
+          
+          {renderAddPatientModal()}
+          {renderEditPatientModal()}
 
-      <DeleteConfirmationModal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={handleConfirmDelete}
-        patient={patientToDelete}
-      />
+          <DeleteConfirmationModal
+            isOpen={isDeleteModalOpen}
+            onClose={() => setIsDeleteModalOpen(false)}
+            onConfirm={handleConfirmDelete}
+            patient={patientToDelete}
+          />
+        </div>
+      </main>
     </div>
   );
 }

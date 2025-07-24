@@ -5,6 +5,15 @@ import { useState, useEffect, FormEvent, useRef, useActionState } from 'react';
 import { createPatient } from '@/app/patients/actions';
 import { createPatient as createAdminPatient, createPatientForSales } from '@/app/admin/patients/actions';
 import { getAllRegionNames, getDelegationsForRegion } from '@/utils/tunisianRegions';
+import { DatePicker } from '@/components/ui/date-picker';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 // Exporting this type to be used in other components
 export interface PatientFormData {
@@ -31,7 +40,7 @@ interface PatientFormProps {
   onSubmit?: (data: PatientFormData) => void;
   onCancel?: () => void;
   isLoading?: boolean;
-  context?: 'admin' | 'employee' | 'sales'; // Add context prop
+  context?: 'admin' | 'employee' | 'sales';
 }
 
 export default function PatientForm({ 
@@ -49,7 +58,7 @@ export default function PatientForm({
   const getAction = () => {
     if (context === 'admin') return createAdminPatient;
     if (context === 'sales') return createPatientForSales;
-    return createPatient; // default for employee context
+    return createPatient;
   };
   
   const [state, dispatch] = useActionState(getAction(), initialState);
@@ -66,7 +75,6 @@ export default function PatientForm({
   // Handle successful patient creation in sales context
   useEffect(() => {
     if (context === 'sales' && onSubmit) {
-      // Check if state has success property (from createPatientForSales)
       const salesState = state as any;
       if (salesState?.success && salesState?.patient) {
         onSubmit(salesState);
@@ -78,7 +86,7 @@ export default function PatientForm({
     if (initialData) {
       return {
         ...initialData,
-        date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : '',
       };
     }
     return {
@@ -106,7 +114,7 @@ export default function PatientForm({
     if (initialData) {
       setFormData({
         ...initialData,
-        date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : '',
       });
     }
   }, [initialData]);
@@ -115,14 +123,11 @@ export default function PatientForm({
     if (formData.region) {
       const delegations = getDelegationsForRegion(formData.region);
       setAvailableDelegations(delegations);
-      // Reset address if region changed and current address is not valid for new region
-      // But don't reset on initial load to preserve existing patient data
       if (!isInitialLoad.current && formData.address && !delegations.includes(formData.address)) {
         setFormData(prev => ({ ...prev, address: '' }));
       }
     } else {
       setAvailableDelegations([]);
-      // Reset address if no region selected (but not on initial load)
       if (!isInitialLoad.current && formData.address) {
         setFormData(prev => ({ ...prev, address: '' }));
       }
@@ -130,436 +135,406 @@ export default function PatientForm({
     isInitialLoad.current = false;
   }, [formData.region, formData.address]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    // const isCheckbox = type === 'checkbox';
-    const isNumber = type === 'number';
+  const handleInputChange = (field: string, value: string | boolean) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
-    let finalValue: string | boolean | number = value;
-    if (isNumber) {
-      finalValue = value ? parseFloat(value) : 0;
-    } else if (name === 'hasCnam') {
-      finalValue = value === 'true';
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    console.log('Form submission triggered', { formData, onSubmit: !!onSubmit });
+    
+    if (onSubmit) {
+      // Direct form submission for modals/custom handlers
+      console.log('Using direct onSubmit handler');
+      setIsSubmitting(true);
+      onSubmit(formData);
+    } else {
+      // Use form actions for server actions
+      console.log('Using server action dispatch');
+      setIsSubmitting(true);
+      const formEl = e.currentTarget;
+      const formDataObj = new FormData(formEl);
+      
+      // Add form data to FormData object
+      Object.entries(formData).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          formDataObj.set(key, String(value));
+        }
+      });
+      
+      console.log('FormData entries:', Array.from(formDataObj.entries()));
+      dispatch(formDataObj);
     }
-
-    setFormData(prev => ({ ...prev, [name]: finalValue }));
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Only show title if not using the component in a page with its own header */}
+    <div className="space-y-6">
+      {/* Header */}
       {(initialData || onSubmit) && (
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-800 mb-2">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900">
             {initialData ? 'Modifier le Patient' : 'Nouveau Patient'}
           </h1>
-          <p className="text-slate-600">
+          <p className="text-gray-600 mt-2">
             {initialData ? 'Modifiez les informations du patient' : 'Saisissez les informations du patient'}
           </p>
         </div>
       )}
 
-      <form 
-        onSubmit={(e: FormEvent<HTMLFormElement>) => {
-          if (onSubmit) {
-            e.preventDefault();
-            onSubmit(formData);
-          } else {
-            setIsSubmitting(true);
-            const formEl = e.currentTarget;
-            const formDataObj = new FormData(formEl);
-            if (!formEl.querySelector('input[name="hasCnam"]:checked')) {
-                formDataObj.set('hasCnam', 'false');
-            }
-            dispatch(formDataObj);
-          }
-        }}
-        className="flex flex-col flex-grow"
-      >
-        <div className="flex-grow bg-white rounded-xl shadow-sm border border-slate-200 p-8 space-y-8">
-          
-          {/* Error Display */}
-          {state?.message && (
-            <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-              <div className="flex items-center">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {state.message}
-              </div>
-            </div>
-          )}
-          
-          {/* Personal Information Section */}
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-slate-800 border-b border-slate-200 pb-2">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Error Display */}
+        {state?.message && (
+          <div className="flex items-center p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+            <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+            <span>{state.message}</span>
+          </div>
+        )}
+        
+        {/* Personal Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
               Informations Personnelles
-            </h2>
+            </CardTitle>
+            <CardDescription>
+              Renseignez les informations de base du patient
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label htmlFor="fullName" className="block text-sm font-medium text-slate-700">
+                <Label htmlFor="fullName">
                   Nom et Prénom <span className="text-red-500">*</span>
-                </label>
-                <input 
-                  type="text" 
-                  id="fullName" 
-                  name="fullName" 
-                  className={`w-full px-4 py-3 rounded-lg border focus:ring-2 focus:ring-blue-500/20 outline-none transition-all ${
-                    state?.errors?.fullName ? 'border-red-500 focus:border-red-500' : 'border-slate-300 focus:border-blue-500'
-                  }`}
-                  placeholder="Entrez le nom complet" 
-                  required 
-                  value={formData.fullName} 
-                  onChange={handleChange} 
+                </Label>
+                <Input
+                  id="fullName"
+                  name="fullName"
+                  placeholder="Entrez le nom complet"
+                  value={formData.fullName}
+                  onChange={(e) => handleInputChange('fullName', e.target.value)}
+                  className={state?.errors?.fullName ? 'border-red-500' : ''}
+                  required
                 />
                 {state?.errors?.fullName && (
-                  <p className="text-sm text-red-600 mt-1">{state.errors.fullName[0]}</p>
+                  <p className="text-sm text-red-600">{state.errors.fullName[0]}</p>
                 )}
               </div>
+
               <div className="space-y-2">
-                <label htmlFor="phone" className="block text-sm font-medium text-slate-700">
+                <Label htmlFor="phone">
                   Téléphone <span className="text-red-500">*</span>
-                </label>
-                <input 
-                  type="tel" 
-                  id="phone" 
-                  name="phone" 
-                  className={`w-full px-4 py-3 rounded-lg border focus:ring-2 focus:ring-blue-500/20 outline-none transition-all ${
-                    state?.errors?.phone ? 'border-red-500 focus:border-red-500' : 'border-slate-300 focus:border-blue-500'
-                  }`}
-                  placeholder="+216 XX XXX XXX" 
-                  required 
-                  value={formData.phone} 
-                  onChange={handleChange} 
+                </Label>
+                <Input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  placeholder="+216 XX XXX XXX"
+                  value={formData.phone}
+                  onChange={(e) => handleInputChange('phone', e.target.value)}
+                  className={state?.errors?.phone ? 'border-red-500' : ''}
+                  required
                 />
                 {state?.errors?.phone && (
-                  <p className="text-sm text-red-600 mt-1">{state.errors.phone[0]}</p>
+                  <p className="text-sm text-red-600">{state.errors.phone[0]}</p>
                 )}
               </div>
+
               <div className="space-y-2">
-                <label htmlFor="cin" className="block text-sm font-medium text-slate-700">
-                  CIN
-                </label>
-                <input 
-                  type="text" 
-                  id="cin" 
-                  name="cin" 
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
-                  placeholder="Carte d'identité nationale" 
-                  value={formData.cin || ''} 
-                  onChange={handleChange} 
+                <Label htmlFor="cin">CIN</Label>
+                <Input
+                  id="cin"
+                  name="cin"
+                  placeholder="Carte d'identité nationale"
+                  value={formData.cin || ''}
+                  onChange={(e) => handleInputChange('cin', e.target.value)}
                 />
               </div>
+
               <div className="space-y-2">
-                <label htmlFor="date" className="block text-sm font-medium text-slate-700">
-                  Date <span className="text-slate-400">(optionnel)</span>
-                </label>
-                <input 
-                  type="date" 
-                  id="date" 
-                  name="date" 
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
-                  value={formData.date || ''} 
-                  onChange={handleChange} 
+                <Label>Date <span className="text-gray-400">(optionnel)</span></Label>
+                <DatePicker
+                  id="date"
+                  value={formData.date || ''}
+                  onChange={(value) => handleInputChange('date', value)}
+                  placeholder="DD/MM/YYYY"
                 />
               </div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Insurance Section */}
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-slate-800 border-b border-slate-200 pb-2">
+        {/* Insurance Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-600 rounded-full"></div>
               Assurance
-            </h2>
+            </CardTitle>
+            <CardDescription>
+              Informations sur la couverture sociale du patient
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
             <div className="space-y-4">
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-slate-700">
-                  Le patient a-t-il la CNAM?
-                </label>
-                <div className="flex gap-6">
-                  <label className="flex items-center cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="hasCnam" 
-                      value="true" 
-                      checked={formData.hasCnam === true} 
-                      onChange={handleChange} 
-                      className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500" 
-                    />
-                    <span className="ml-2 text-sm text-slate-700">Oui</span>
-                  </label>
-                  <label className="flex items-center cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="hasCnam" 
-                      value="false" 
-                      checked={formData.hasCnam === false} 
-                      onChange={handleChange} 
-                      className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500" 
-                    />
-                    <span className="ml-2 text-sm text-slate-700">Non</span>
-                  </label>
+              <Label>Le patient a-t-il la CNAM?</Label>
+              <RadioGroup
+                name="hasCnam"
+                value={formData.hasCnam ? 'true' : 'false'}
+                onValueChange={(value) => handleInputChange('hasCnam', value === 'true')}
+                className="flex gap-6"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="true" id="cnam-yes" />
+                  <Label htmlFor="cnam-yes">Oui</Label>
                 </div>
-              </div>
-              
-              {formData.hasCnam && (
-                <div className="bg-slate-50 rounded-lg border border-slate-200 p-6 space-y-6">
-                  <div className="space-y-2">
-                    <label htmlFor="cnamId" className="block text-sm font-medium text-slate-700">
-                      Identifiant CNAM
-                    </label>
-                    <input 
-                      type="text" 
-                      id="cnamId" 
-                      name="cnamId" 
-                      className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
-                      placeholder="Numéro d'assuré" 
-                      value={formData.cnamId || ''} 
-                      onChange={handleChange} 
-                    />
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <label className="block text-sm font-medium text-slate-700">
-                      Caisse d&apos;affiliation
-                    </label>
-                    <div className="flex gap-6">
-                      <label className="flex items-center cursor-pointer">
-                        <input 
-                          type="radio" 
-                          name="affiliation" 
-                          value="CNSS" 
-                          checked={formData.affiliation === 'CNSS'} 
-                          onChange={handleChange} 
-                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
-                        />
-                        <span className="ml-2 text-sm text-slate-700">CNSS</span>
-                      </label>
-                      <label className="flex items-center cursor-pointer">
-                        <input 
-                          type="radio" 
-                          name="affiliation" 
-                          value="CNRPS" 
-                          checked={formData.affiliation === 'CNRPS'} 
-                          onChange={handleChange} 
-                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
-                        />
-                        <span className="ml-2 text-sm text-slate-700">CNRPS</span>
-                      </label>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <label className="block text-sm font-medium text-slate-700">
-                      Bénéficiaire
-                    </label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <label className="flex items-center cursor-pointer">
-                        <input 
-                          type="radio" 
-                          name="beneficiary" 
-                          value="SOCIAL_INSURED" 
-                          checked={formData.beneficiary === 'SOCIAL_INSURED'} 
-                          onChange={handleChange} 
-                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
-                        />
-                        <span className="ml-2 text-sm text-slate-700">Assuré Social</span>
-                      </label>
-                      <label className="flex items-center cursor-pointer">
-                        <input 
-                          type="radio" 
-                          name="beneficiary" 
-                          value="SPOUSE" 
-                          checked={formData.beneficiary === 'SPOUSE'} 
-                          onChange={handleChange} 
-                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
-                        />
-                        <span className="ml-2 text-sm text-slate-700">Conjoint</span>
-                      </label>
-                      <label className="flex items-center cursor-pointer">
-                        <input 
-                          type="radio" 
-                          name="beneficiary" 
-                          value="CHILD" 
-                          checked={formData.beneficiary === 'CHILD'} 
-                          onChange={handleChange} 
-                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
-                        />
-                        <span className="ml-2 text-sm text-slate-700">Enfant</span>
-                      </label>
-                      <label className="flex items-center cursor-pointer">
-                        <input 
-                          type="radio" 
-                          name="beneficiary" 
-                          value="ANCESTOR" 
-                          checked={formData.beneficiary === 'ANCESTOR'} 
-                          onChange={handleChange} 
-                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
-                        />
-                        <span className="ml-2 text-sm text-slate-700">Ascendant</span>
-                      </label>
-                    </div>
-                  </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="false" id="cnam-no" />
+                  <Label htmlFor="cnam-no">Non</Label>
                 </div>
-              )}
+              </RadioGroup>
             </div>
-          </div>
+            
+            {formData.hasCnam && (
+              <Card className="bg-slate-50 border-slate-200">
+                <CardContent className="pt-6 space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="cnamId">Identifiant CNAM</Label>
+                    <Input
+                      id="cnamId"
+                      name="cnamId"
+                      placeholder="Numéro d'assuré"
+                      value={formData.cnamId || ''}
+                      onChange={(e) => handleInputChange('cnamId', e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <Label>Caisse d'affiliation</Label>
+                    <RadioGroup
+                      name="affiliation"
+                      value={formData.affiliation || 'CNSS'}
+                      onValueChange={(value) => handleInputChange('affiliation', value as Affiliation)}
+                      className="flex gap-6"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="CNSS" id="cnss" />
+                        <Label htmlFor="cnss">CNSS</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="CNRPS" id="cnrps" />
+                        <Label htmlFor="cnrps">CNRPS</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <Label>Bénéficiaire</Label>
+                    <RadioGroup
+                      name="beneficiary"
+                      value={formData.beneficiary || 'SOCIAL_INSURED'}
+                      onValueChange={(value) => handleInputChange('beneficiary', value as Beneficiary)}
+                      className="grid grid-cols-2 gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="SOCIAL_INSURED" id="social-insured" />
+                        <Label htmlFor="social-insured">Assuré Social</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="SPOUSE" id="spouse" />
+                        <Label htmlFor="spouse">Conjoint</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="CHILD" id="child" />
+                        <Label htmlFor="child">Enfant</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="ANCESTOR" id="ancestor" />
+                        <Label htmlFor="ancestor">Ascendant</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </CardContent>
+        </Card>
 
-          {/* Address Section */}
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-slate-800 border-b border-slate-200 pb-2">
+        {/* Address Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-orange-600 rounded-full"></div>
               Adresse
-            </h2>
+            </CardTitle>
+            <CardDescription>
+              Localisation et contact du patient
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label htmlFor="region" className="block text-sm font-medium text-slate-700">
+                <Label htmlFor="region">
                   Région <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  id="region" 
-                  name="region" 
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
-                  value={formData.region} 
-                  onChange={handleChange} 
+                </Label>
+                <Select
+                  name="region"
+                  value={formData.region}
+                  onValueChange={(value) => handleInputChange('region', value)}
                   required
                 >
-                  <option value="">Sélectionner une région</option>
-                  {getAllRegionNames().map(region => (
-                    <option key={region} value={region}>{region}</option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une région" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getAllRegionNames().map(region => (
+                      <SelectItem key={region} value={region}>{region}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
               <div className="space-y-2">
-                <label htmlFor="address" className="block text-sm font-medium text-slate-700">
+                <Label htmlFor="address">
                   Délégation <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  id="address" 
-                  name="address" 
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
-                  required 
-                  disabled={!formData.region} 
-                  value={formData.address} 
-                  onChange={handleChange}
+                </Label>
+                <Select
+                  name="address"
+                  value={formData.address}
+                  onValueChange={(value) => handleInputChange('address', value)}
+                  disabled={!formData.region}
+                  required
                 >
-                  <option value="">Sélectionner une délégation</option>
-                  {availableDelegations.map(delegation => (
-                    <option key={delegation} value={delegation}>{delegation}</option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une délégation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDelegations.map(delegation => (
+                      <SelectItem key={delegation} value={delegation}>{delegation}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
+
             <div className="space-y-2">
-              <label htmlFor="addressDetails" className="block text-sm font-medium text-slate-700">
-                Adresse Détaillée <span className="text-slate-400">(optionnel)</span>
-              </label>
-              <input 
-                type="text" 
-                id="addressDetails" 
-                name="addressDetails" 
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
-                placeholder="Ex: 123 Rue de la Liberté, Cité El Khadra" 
-                value={formData.addressDetails || ''} 
-                onChange={handleChange} 
+              <Label htmlFor="addressDetails">
+                Adresse Détaillée <span className="text-gray-400">(optionnel)</span>
+              </Label>
+              <Textarea
+                id="addressDetails"
+                name="addressDetails"
+                placeholder="Ex: 123 Rue de la Liberté, Cité El Khadra"
+                value={formData.addressDetails || ''}
+                onChange={(e) => handleInputChange('addressDetails', e.target.value)}
+                rows={2}
               />
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Medical & Assignment Section */}
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-slate-800 border-b border-slate-200 pb-2">
+        {/* Medical & Assignment */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
               Médical & Attribution
-            </h2>
+            </CardTitle>
+            <CardDescription>
+              Informations médicales et attribution du personnel
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label htmlFor="doctorName" className="block text-sm font-medium text-slate-700">
-                  Médecin traitant
-                </label>
-                <input 
-                  type="text" 
-                  id="doctorName" 
-                  name="doctorName" 
-                  className={`w-full px-4 py-3 rounded-lg border focus:ring-2 focus:ring-blue-500/20 outline-none transition-all ${
-                    state?.errors?.doctorName ? 'border-red-500 focus:border-red-500' : 'border-slate-300 focus:border-blue-500'
-                  }`}
-                  placeholder="Nom du médecin traitant" 
-                  value={formData.doctorName || ''} 
-                  onChange={handleChange} 
+                <Label htmlFor="doctorName">Médecin traitant</Label>
+                <Input
+                  id="doctorName"
+                  name="doctorName"
+                  placeholder="Nom du médecin traitant"
+                  value={formData.doctorName || ''}
+                  onChange={(e) => handleInputChange('doctorName', e.target.value)}
+                  className={state?.errors?.doctorName ? 'border-red-500' : ''}
                 />
                 {state?.errors?.doctorName && (
-                  <p className="text-sm text-red-600 mt-1">{state.errors.doctorName[0]}</p>
+                  <p className="text-sm text-red-600">{state.errors.doctorName[0]}</p>
                 )}
               </div>
               
               <div className="space-y-2">
-                <label htmlFor="technicianId" className="block text-sm font-medium text-slate-700">
+                <Label htmlFor="technicianId">
                   Technicien Attribué <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  id="technicianId" 
-                  name="technicianId" 
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
-                  required 
-                  value={formData.technicianId || loggedInUserId} 
-                  onChange={handleChange}
+                </Label>
+                <Select
+                  name="technicianId"
+                  value={formData.technicianId || loggedInUserId}
+                  onValueChange={(value) => handleInputChange('technicianId', value)}
+                  required
                 >
-                  <option value="">Sélectionner un technicien</option>
-                  {technicians.map((tech) => (
-                    <option key={tech.id} value={tech.id}>
-                      {tech.name} {tech.id === loggedInUserId && "(Vous)"}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un technicien" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {technicians.map((tech) => (
+                      <SelectItem key={tech.id} value={tech.id}>
+                        {tech.name} {tech.id === loggedInUserId && "(Vous)"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-2">
-                <label htmlFor="supervisorId" className="block text-sm font-medium text-slate-700">
-                  Superviseur <span className="text-slate-400">(optionnel)</span>
-                </label>
-                <select 
-                  id="supervisorId" 
-                  name="supervisorId" 
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
-                  value={formData.supervisorId || ''} 
-                  onChange={handleChange}
+
+              <div className="space-y-2 md:col-span-1">
+                <Label htmlFor="supervisorId">
+                  Superviseur <span className="text-gray-400">(optionnel)</span>
+                </Label>
+                <Select
+                  name="supervisorId"
+                  value={formData.supervisorId || 'none'}
+                  onValueChange={(value) => handleInputChange('supervisorId', value === 'none' ? '' : value)}
                 >
-                  <option value="">Sélectionner un superviseur</option>
-                  {technicians.map((tech) => (
-                    <option key={tech.id} value={tech.id}>
-                      {tech.name} {tech.id === loggedInUserId && "(Vous)"}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un superviseur" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucun superviseur</SelectItem>
+                    {technicians.map((tech) => (
+                      <SelectItem key={tech.id} value={tech.id}>
+                        {tech.name} {tech.id === loggedInUserId && "(Vous)"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Form Actions */}
-        <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-slate-200">
+        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t border-gray-200">
           {onCancel && (
-            <button 
-              type="button" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={onCancel}
-              className="px-6 py-3 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+              disabled={isLoading || isSubmitting}
             >
               Annuler
-            </button>
+            </Button>
           )}
-          <button 
-            type="submit" 
-            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2" 
+          <Button
+            type="submit"
             disabled={isLoading || isSubmitting}
+            className="min-w-[140px]"
           >
             {(isLoading || isSubmitting) && (
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             )}
-            <span>
-              {(isLoading || isSubmitting) ? (initialData ? 'Modification...' : 'Enregistrement...') : (initialData ? 'Modifier' : 'Enregistrer')}
-            </span>
-          </button>
+            {(isLoading || isSubmitting) 
+              ? (initialData ? 'Modification...' : 'Enregistrement...') 
+              : (initialData ? 'Modifier' : 'Enregistrer')
+            }
+          </Button>
         </div>
       </form>
     </div>

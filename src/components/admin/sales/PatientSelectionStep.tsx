@@ -5,6 +5,7 @@ import Link from "next/link";
 import { fetchWithAuth } from '@/lib/apiClient';
 import PatientForm from "@/components/PatientForm";
 import { Technician } from "@prisma/client";
+import PatientCreationModal from "@/components/patients/PatientCreationModal";
 
 type Patient = {
   id: string;
@@ -250,33 +251,29 @@ export default function PatientSelectionStep({ onPatientSelect }: PatientSelecti
         )}
       </div>
       
-      {/* Patient Creation Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-slate-800">Créer un nouveau patient</h2>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-6">
-              <PatientForm 
-                technicians={technicians} 
-                context="sales"
-                onSubmit={handlePatientCreated}
-                onCancel={() => setShowCreateModal(false)}
-                isLoading={isCreatingPatient}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Patient Creation Modal (shared) */}
+      <PatientCreationModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        technicians={technicians}
+        onPatientCreated={(newPatient) => {
+          // Map the returned patient to the expected Patient type
+          const patient = newPatient as any;
+          const patientForList = {
+            id: patient.id,
+            fullName: patient.fullName,
+            phone: patient.phone,
+            region: patient.region,
+            address: patient.address,
+            doctorName: patient.doctorName,
+            createdAt: patient.createdAt || new Date().toISOString(),
+          };
+          setPatients(prev => [...prev, patientForList]);
+          setFilteredPatients(prev => [...prev, patientForList]);
+          setShowCreateModal(false);
+          onPatientSelect(patientForList);
+        }}
+      />
     </div>
   );
 }
