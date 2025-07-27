@@ -1,0 +1,636 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { DatePicker } from "@/components/ui/date-picker";
+import { ArrowLeft, Plus, Trash2, Bell, AlertCircle, Calendar, Clock } from "lucide-react";
+import { Patient } from "@/types/rental";
+import { SALETYPE } from "@prisma/client";
+
+import { RentalAccessory } from "./simple/AccessoriesSection";
+import { PaymentInfo, PaymentAlert } from "./simple/PaymentsSection";
+
+interface SimpleRentalFormProps {
+  patient: Patient;
+  onBack: () => void;
+}
+
+// Enhanced Device interface to include everything per device
+interface EnhancedRentalDevice {
+  id: string;
+  name: string;
+  model: string;
+  serialNumber: string;
+  notes: string;
+  startDate: string;
+  endDate: string;
+  accessories: RentalAccessory[];
+  payments: PaymentInfo[];
+  status: string;
+  actualReturnDate: string;
+}
+
+export default function SimpleRentalForm({ patient, onBack }: SimpleRentalFormProps) {
+  // Basic rental info (global)
+  const [contractNumber, setContractNumber] = useState("");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Device-centered approach
+  const [devices, setDevices] = useState<EnhancedRentalDevice[]>([]);
+
+  // Device management functions
+  const addDevice = () => {
+    const newDevice: EnhancedRentalDevice = {
+      id: Date.now().toString(),
+      name: "",
+      model: "",
+      serialNumber: "",
+      notes: "",
+      startDate: new Date().toISOString().split("T")[0],
+      endDate: "",
+      accessories: [],
+      payments: [],
+      status: "PENDING",
+      actualReturnDate: ""
+    };
+    setDevices([...devices, newDevice]);
+  };
+
+  const updateDevice = (deviceId: string, field: keyof EnhancedRentalDevice, value: any) => {
+    setDevices(devices.map(device => 
+      device.id === deviceId ? { ...device, [field]: value } : device
+    ));
+  };
+
+  const removeDevice = (deviceId: string) => {
+    setDevices(devices.filter(d => d.id !== deviceId));
+  };
+
+  // Accessory management per device
+  const addAccessoryToDevice = (deviceId: string) => {
+    const newAccessory: RentalAccessory = {
+      id: Date.now().toString(),
+      name: "",
+      model: "",
+      isFree: true,
+      notes: ""
+    };
+    setDevices(devices.map(device => 
+      device.id === deviceId 
+        ? { ...device, accessories: [...device.accessories, newAccessory] }
+        : device
+    ));
+  };
+
+  const updateDeviceAccessory = (deviceId: string, accessoryId: string, field: keyof RentalAccessory, value: any) => {
+    setDevices(devices.map(device => 
+      device.id === deviceId 
+        ? {
+            ...device, 
+            accessories: device.accessories.map(acc => 
+              acc.id === accessoryId ? { ...acc, [field]: value } : acc
+            )
+          }
+        : device
+    ));
+  };
+
+  const removeAccessoryFromDevice = (deviceId: string, accessoryId: string) => {
+    setDevices(devices.map(device => 
+      device.id === deviceId 
+        ? { ...device, accessories: device.accessories.filter(acc => acc.id !== accessoryId) }
+        : device
+    ));
+  };
+
+  // Payment management per device
+  const addPaymentToDevice = (deviceId: string) => {
+    const newPayment: PaymentInfo = {
+      id: Date.now().toString(),
+      type: SALETYPE.CASH,
+      amount: 0,
+      dueDate: new Date().toISOString().split("T")[0],
+      alerts: [],
+      notes: ""
+    };
+    setDevices(devices.map(device => 
+      device.id === deviceId 
+        ? { ...device, payments: [...device.payments, newPayment] }
+        : device
+    ));
+  };
+
+  const updateDevicePayment = (deviceId: string, paymentId: string, field: keyof PaymentInfo, value: any) => {
+    setDevices(devices.map(device => 
+      device.id === deviceId 
+        ? {
+            ...device, 
+            payments: device.payments.map(payment => 
+              payment.id === paymentId ? { ...payment, [field]: value } : payment
+            )
+          }
+        : device
+    ));
+  };
+
+  const removePaymentFromDevice = (deviceId: string, paymentId: string) => {
+    setDevices(devices.map(device => 
+      device.id === deviceId 
+        ? { ...device, payments: device.payments.filter(payment => payment.id !== paymentId) }
+        : device
+    ));
+  };
+
+  // Alert management per payment
+  const addAlertToPayment = (deviceId: string, paymentId: string) => {
+    const newAlert: PaymentAlert = {
+      id: Date.now().toString(),
+      type: "REMINDER",
+      date: new Date().toISOString().split("T")[0],
+      message: "",
+      isActive: true
+    };
+    setDevices(devices.map(device => 
+      device.id === deviceId 
+        ? {
+            ...device, 
+            payments: device.payments.map(payment => 
+              payment.id === paymentId 
+                ? { ...payment, alerts: [...payment.alerts, newAlert] }
+                : payment
+            )
+          }
+        : device
+    ));
+  };
+
+  const updatePaymentAlert = (deviceId: string, paymentId: string, alertId: string, field: keyof PaymentAlert, value: any) => {
+    setDevices(devices.map(device => 
+      device.id === deviceId 
+        ? {
+            ...device, 
+            payments: device.payments.map(payment => 
+              payment.id === paymentId 
+                ? {
+                    ...payment, 
+                    alerts: payment.alerts.map(alert => 
+                      alert.id === alertId ? { ...alert, [field]: value } : alert
+                    )
+                  }
+                : payment
+            )
+          }
+        : device
+    ));
+  };
+
+  const removeAlertFromPayment = (deviceId: string, paymentId: string, alertId: string) => {
+    setDevices(devices.map(device => 
+      device.id === deviceId 
+        ? {
+            ...device, 
+            payments: device.payments.map(payment => 
+              payment.id === paymentId 
+                ? { ...payment, alerts: payment.alerts.filter(alert => alert.id !== alertId) }
+                : payment
+            )
+          }
+        : device
+    ));
+  };
+
+  // Utility functions
+  const getPaymentTypeLabel = (type: SALETYPE) => {
+    switch (type) {
+      case SALETYPE.CASH: return "Espèces";
+      case SALETYPE.CHECK: return "Chèque";
+      case SALETYPE.CARD: return "Carte";
+      case SALETYPE.TRANSFER: return "Virement";
+      case SALETYPE.CNAM: return "CNAM";
+      default: return type;
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "";
+    return new Date(dateString).toLocaleDateString("fr-FR");
+  };
+
+  // Form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      // Validation
+      if (!contractNumber.trim()) {
+        throw new Error("Le numéro de contrat est requis");
+      }
+
+      if (devices.length === 0) {
+        throw new Error("Au moins un appareil doit être ajouté");
+      }
+
+      for (const device of devices) {
+        if (!device.name.trim()) {
+          throw new Error("Le nom de l'appareil est requis pour tous les appareils");
+        }
+        if (!device.startDate) {
+          throw new Error("La date de début est requise pour tous les appareils");
+        }
+      }
+
+      // Prepare data for API
+      const rentalData = {
+        patientId: patient.id,
+        contractNumber: contractNumber.trim(),
+        notes: notes.trim(),
+        devices: devices.map(device => ({
+          name: device.name.trim(),
+          model: device.model.trim(),
+          serialNumber: device.serialNumber.trim(),
+          notes: device.notes.trim(),
+          startDate: device.startDate,
+          endDate: device.endDate,
+          status: device.status,
+          accessories: device.accessories,
+          payments: device.payments
+        }))
+      };
+
+      // API call would go here
+      console.log("Rental data to submit:", rentalData);
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Success - redirect or show success message
+      alert("Location créée avec succès!");
+      onBack();
+
+    } catch (err: any) {
+      setError(err.message || "Une erreur est survenue lors de la création de la location");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Patient info header */}
+      <Card className="p-4 bg-blue-50">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-semibold text-gray-900">{patient.fullName}</h3>
+            <p className="text-sm text-gray-600">{patient.phone} • {patient.address}</p>
+          </div>
+          <Button variant="outline" onClick={onBack} className="flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Changer de patient
+          </Button>
+        </div>
+      </Card>
+
+      {/* Error display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Basic rental information */}
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Informations générales</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="contractNumber">Numéro de contrat *</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="contractNumber"
+                  value={contractNumber}
+                  onChange={(e) => setContractNumber(e.target.value)}
+                  placeholder="ex: LOC-1234-5678"
+                  className="flex-1"
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const randomNum1 = Math.floor(Math.random() * 9000) + 1000;
+                    const randomNum2 = Math.floor(Math.random() * 9000) + 1000;
+                    setContractNumber(`LOC-${randomNum1}-${randomNum2}`);
+                  }}
+                  className="px-3"
+                >
+                  Générer
+                </Button>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="notes">Notes générales</Label>
+              <Input
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Notes générales de la location..."
+              />
+            </div>
+          </div>
+        </Card>
+
+        {/* Devices section - simplified inline implementation */}
+        <Card className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center space-x-3">
+              <h3 className="text-lg font-semibold">Appareils et Détails</h3>
+              {devices.length > 0 && (
+                <Badge variant="secondary">
+                  {devices.length} appareil{devices.length > 1 ? 's' : ''}
+                </Badge>
+              )}
+            </div>
+            <Button type="button" onClick={addDevice} className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              Ajouter un appareil
+            </Button>
+          </div>
+          
+          {devices.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              Aucun appareil ajouté. Commencez par ajouter un appareil.
+            </p>
+          ) : (
+            <div className="space-y-8">
+              {devices.map((device, deviceIndex) => (
+                <div key={device.id} className="border-2 border-gray-200 rounded-lg p-6 bg-gray-50">
+                  {/* Device Header */}
+                  <div className="flex justify-between items-start mb-6">
+                    <h4 className="text-xl font-semibold text-gray-900">
+                      Appareil {deviceIndex + 1}
+                    </h4>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeDevice(device.id)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* Device Details */}
+                  <div className="mb-6">
+                    <h5 className="font-medium mb-3 text-gray-700">Détails de l'appareil</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label>Nom *</Label>
+                        <Input
+                          value={device.name}
+                          onChange={(e) => updateDevice(device.id, 'name', e.target.value)}
+                          placeholder="ex: CPAP"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label>Modèle</Label>
+                        <Input
+                          value={device.model}
+                          onChange={(e) => updateDevice(device.id, 'model', e.target.value)}
+                          placeholder="ex: AirSense 10"
+                        />
+                      </div>
+                      <div>
+                        <Label>Numéro de série</Label>
+                        <Input
+                          value={device.serialNumber}
+                          onChange={(e) => updateDevice(device.id, 'serialNumber', e.target.value)}
+                          placeholder="ex: SN123456"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <Label>Notes sur l'appareil</Label>
+                      <Input
+                        value={device.notes}
+                        onChange={(e) => updateDevice(device.id, 'notes', e.target.value)}
+                        placeholder="Notes spécifiques à cet appareil..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Device Dates */}
+                  <div className="mb-6 bg-blue-50 p-4 rounded-lg">
+                    <h5 className="font-medium mb-3 text-blue-700">Dates pour cet appareil</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <DatePicker
+                          label="Date de début *"
+                          value={device.startDate}
+                          onChange={(value) => updateDevice(device.id, 'startDate', value)}
+                          placeholder="JJ/MM/AAAA"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <DatePicker
+                          label="Date de fin prévue"
+                          value={device.endDate}
+                          onChange={(value) => updateDevice(device.id, 'endDate', value)}
+                          placeholder="JJ/MM/AAAA"
+                        />
+                      </div>
+                      <div>
+                        <Label>Statut</Label>
+                        <Select
+                          value={device.status}
+                          onValueChange={(value) => updateDevice(device.id, 'status', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner un statut" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="PENDING">En attente</SelectItem>
+                            <SelectItem value="ACTIVE">Actif</SelectItem>
+                            <SelectItem value="RETURNED">Retourné</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Accessories Section */}
+                  <div className="mb-6">
+                    <div className="flex justify-between items-center mb-3">
+                      <h5 className="font-medium text-gray-700">Accessoires</h5>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addAccessoryToDevice(device.id)}
+                        className="flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Ajouter
+                      </Button>
+                    </div>
+                    
+                    {device.accessories.length === 0 ? (
+                      <p className="text-gray-500 text-sm">Aucun accessoire</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {device.accessories.map((accessory) => (
+                          <div key={accessory.id} className="flex items-center gap-3 p-3 bg-white rounded border">
+                            <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
+                              <Input
+                                value={accessory.name}
+                                onChange={(e) => updateDeviceAccessory(device.id, accessory.id, 'name', e.target.value)}
+                                placeholder="Nom"
+                              />
+                              <Input
+                                value={accessory.model}
+                                onChange={(e) => updateDeviceAccessory(device.id, accessory.id, 'model', e.target.value)}
+                                placeholder="Modèle"
+                              />
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={accessory.isFree}
+                                  onChange={(e) => updateDeviceAccessory(device.id, accessory.id, 'isFree', e.target.checked)}
+                                />
+                                <span className="text-sm">Gratuit</span>
+                              </div>
+                              <Input
+                                value={accessory.notes}
+                                onChange={(e) => updateDeviceAccessory(device.id, accessory.id, 'notes', e.target.value)}
+                                placeholder="Notes"
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeAccessoryFromDevice(device.id, accessory.id)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Payments Section */}
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <h5 className="font-medium text-gray-700">Paiements</h5>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addPaymentToDevice(device.id)}
+                        className="flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Ajouter
+                      </Button>
+                    </div>
+                    
+                    {device.payments.length === 0 ? (
+                      <p className="text-gray-500 text-sm">Aucun paiement</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {device.payments.map((payment) => (
+                          <div key={payment.id} className="p-4 bg-white rounded border">
+                            <div className="flex justify-between items-start mb-3">
+                              <h6 className="font-medium">Paiement</h6>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removePaymentFromDevice(device.id, payment.id)}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                              <div>
+                                <Label>Type</Label>
+                                <Select
+                                  value={payment.type}
+                                  onValueChange={(value) => updateDevicePayment(device.id, payment.id, 'type', value as SALETYPE)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value={SALETYPE.CASH}>Espèces</SelectItem>
+                                    <SelectItem value={SALETYPE.CHECK}>Chèque</SelectItem>
+                                    <SelectItem value={SALETYPE.CARD}>Carte</SelectItem>
+                                    <SelectItem value={SALETYPE.TRANSFER}>Virement</SelectItem>
+                                    <SelectItem value={SALETYPE.CNAM}>CNAM</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label>Montant</Label>
+                                <Input
+                                  type="number"
+                                  value={payment.amount}
+                                  onChange={(e) => updateDevicePayment(device.id, payment.id, 'amount', parseFloat(e.target.value) || 0)}
+                                  placeholder="0.00"
+                                />
+                              </div>
+                              <div>
+                                <DatePicker
+                                  label="Date d'échéance"
+                                  value={payment.dueDate}
+                                  onChange={(value) => updateDevicePayment(device.id, payment.id, 'dueDate', value)}
+                                />
+                              </div>
+                              <div>
+                                <Label>Notes</Label>
+                                <Input
+                                  value={payment.notes}
+                                  onChange={(e) => updateDevicePayment(device.id, payment.id, 'notes', e.target.value)}
+                                  placeholder="Notes"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Submit button */}
+        <div className="flex justify-center">
+          <Button
+            type="submit"
+            disabled={isSubmitting || devices.length === 0}
+            className="px-8 py-2 text-lg"
+            size="lg"
+          >
+            {isSubmitting ? "Création en cours..." : "Créer la location"}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}

@@ -40,12 +40,36 @@ type PaymentData = {
   isOverdue?: boolean;
   overdueDays?: number;
   reminderSent?: boolean;
-  // Payment method specific fields
+  // Enhanced schedule fields for all payment types
+  // ESPECE (Cash) schedule fields
+  cashInstallments?: number;
+  cashInstallmentAmount?: number;
+  cashNextDueDate?: string;
+  cashFrequency?: string;
+  // CHEQUE schedule fields
+  chequeInstallments?: number;
+  chequeFrequency?: string;
+  chequeNextDueDate?: string;
+  chequeSerialStart?: string;
   chequeNumber?: string;
   chequeDate?: string;
-  traiteDueDate?: string;
+  // VIREMENT schedule fields
+  virementFrequency?: string;
+  virementNextDueDate?: string;
+  virementBankAccount?: string;
+  virementReference?: string;
+  // CNAM enhanced schedule fields
+  cnamDebutDate?: string;
+  cnamEndDate?: string;
+  cnamSupportMonths?: number;
+  cnamSupportAmount?: number;
   cnamStatus?: string;
   cnamFollowupDate?: string;
+  // TRAITE schedule fields
+  traiteFrequency?: string;
+  traiteNextDueDate?: string;
+  traiteReference?: string;
+  traiteDueDate?: string;
   notes?: string;
 };
 
@@ -58,8 +82,8 @@ type SimpleRentalFormData = {
   notes?: string;
   amount: number;
   type: SALETYPE;
-  status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
-  returnStatus: 'NOT_RETURNED' | 'RETURNED' | 'PARTIALLY_RETURNED' | 'DAMAGED';
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  returnStatus?: 'NOT_RETURNED' | 'RETURNED' | 'PARTIALLY_RETURNED' | 'DAMAGED';
   actualReturnDate?: string;
   devices: {
     name: string;
@@ -236,7 +260,7 @@ async function handleSimpleRentalForm(body: SimpleRentalFormData, currentUser: a
       amount: amount,
       contractNumber: contractNumber,
       status: status as TRANSACTION_STATUS,
-      returnStatus: returnStatus as RETURN_STATUS,
+      returnStatus: (returnStatus as RETURN_STATUS) || RETURN_STATUS.NOT_RETURNED,
       actualReturnDate: actualReturnDate ? new Date(actualReturnDate) : null,
       type: type,
       patient: {
@@ -338,16 +362,36 @@ async function handleSimpleRentalForm(body: SimpleRentalFormData, currentUser: a
           type: paymentData.type,
           paymentDate: new Date(),
           dueDate: paymentData.dueDate ? new Date(paymentData.dueDate) : new Date(),
-          cnamStatus: paymentData.cnamStatus,
-          cnamSupportAmount: paymentData.cnamSupportAmount,
+          // Enhanced schedule fields for all payment types
+          // ESPECE (Cash) schedule fields
+          cashInstallments: paymentData.cashInstallments,
+          cashInstallmentAmount: paymentData.cashInstallmentAmount,
+          cashNextDueDate: paymentData.cashNextDueDate ? new Date(paymentData.cashNextDueDate) : undefined,
+          cashFrequency: paymentData.cashFrequency,
+          // CHEQUE schedule fields
+          chequeInstallments: paymentData.chequeInstallments,
+          chequeFrequency: paymentData.chequeFrequency,
+          chequeNextDueDate: paymentData.chequeNextDueDate ? new Date(paymentData.chequeNextDueDate) : undefined,
+          chequeSerialStart: paymentData.chequeSerialStart,
+          chequeNumber: paymentData.chequeNumber,
+          chequeDate: paymentData.chequeDate ? new Date(paymentData.chequeDate) : undefined,
+          // VIREMENT schedule fields
+          virementFrequency: paymentData.virementFrequency,
+          virementNextDueDate: paymentData.virementNextDueDate ? new Date(paymentData.virementNextDueDate) : undefined,
+          virementBankAccount: paymentData.virementBankAccount,
+          virementReference: paymentData.virementReference,
+          // CNAM enhanced schedule fields
           cnamDebutDate: paymentData.cnamDebutDate ? new Date(paymentData.cnamDebutDate) : undefined,
           cnamEndDate: paymentData.cnamEndDate ? new Date(paymentData.cnamEndDate) : undefined,
           cnamSupportMonths: paymentData.cnamSupportMonths,
-          // Cash payment specific fields
-          cashTotal: paymentData.cashTotal,
-          cashAcompte: paymentData.cashAcompte,
-          cashRest: paymentData.cashRest,
-          cashRestDate: paymentData.cashRestDate ? new Date(paymentData.cashRestDate) : undefined,
+          cnamSupportAmount: paymentData.cnamSupportAmount,
+          cnamStatus: paymentData.cnamStatus,
+          cnamFollowupDate: paymentData.cnamFollowupDate ? new Date(paymentData.cnamFollowupDate) : undefined,
+          // TRAITE schedule fields
+          traiteFrequency: paymentData.traiteFrequency,
+          traiteNextDueDate: paymentData.traiteNextDueDate ? new Date(paymentData.traiteNextDueDate) : undefined,
+          traiteReference: paymentData.traiteReference,
+          traiteDueDate: paymentData.traiteDueDate ? new Date(paymentData.traiteDueDate) : undefined,
           notes: paymentData.notes,
           rental: { connect: { id: createdRental.id } },
         }
@@ -478,7 +522,7 @@ async function handleComplexRental(body: RentalRequestData, currentUser: any) {
           endDate: new Date(endDate),
           amount: amount,
           status: status || TRANSACTION_STATUS.PENDING,
-          returnStatus: returnStatus as RETURN_STATUS || RETURN_STATUS.NOT_RETURNED,
+          returnStatus: (returnStatus as RETURN_STATUS) || RETURN_STATUS.NOT_RETURNED,
           type: rentalItems[0]?.payments[0]?.method || SALETYPE.CASH,
           patient: {
             connect: { id: patientId }
@@ -542,11 +586,36 @@ async function handleComplexRental(body: RentalRequestData, currentUser: any) {
             isOverdue: overdueInfo.isOverdue,
             overdueDays: overdueInfo.overdueDays,
             reminderSent: overdueInfo.reminderSent,
+            // Enhanced schedule fields for all payment types
+            // ESPECE (Cash) schedule fields
+            cashInstallments: payment.cashInstallments,
+            cashInstallmentAmount: payment.cashInstallmentAmount,
+            cashNextDueDate: payment.cashNextDueDate ? new Date(payment.cashNextDueDate) : undefined,
+            cashFrequency: payment.cashFrequency,
+            // CHEQUE schedule fields
+            chequeInstallments: payment.chequeInstallments,
+            chequeFrequency: payment.chequeFrequency,
+            chequeNextDueDate: payment.chequeNextDueDate ? new Date(payment.chequeNextDueDate) : undefined,
+            chequeSerialStart: payment.chequeSerialStart,
             chequeNumber: payment.chequeNumber,
             chequeDate: payment.chequeDate ? new Date(payment.chequeDate) : undefined,
-            traiteDueDate: payment.traiteDueDate ? new Date(payment.traiteDueDate) : undefined,
+            // VIREMENT schedule fields
+            virementFrequency: payment.virementFrequency,
+            virementNextDueDate: payment.virementNextDueDate ? new Date(payment.virementNextDueDate) : undefined,
+            virementBankAccount: payment.virementBankAccount,
+            virementReference: payment.virementReference,
+            // CNAM enhanced schedule fields
+            cnamDebutDate: payment.cnamDebutDate ? new Date(payment.cnamDebutDate) : undefined,
+            cnamEndDate: payment.cnamEndDate ? new Date(payment.cnamEndDate) : undefined,
+            cnamSupportMonths: payment.cnamSupportMonths,
+            cnamSupportAmount: payment.cnamSupportAmount,
             cnamStatus: payment.cnamStatus,
             cnamFollowupDate: payment.cnamFollowupDate ? new Date(payment.cnamFollowupDate) : undefined,
+            // TRAITE schedule fields
+            traiteFrequency: payment.traiteFrequency,
+            traiteNextDueDate: payment.traiteNextDueDate ? new Date(payment.traiteNextDueDate) : undefined,
+            traiteReference: payment.traiteReference,
+            traiteDueDate: payment.traiteDueDate ? new Date(payment.traiteDueDate) : undefined,
             notes: payment.notes,
             rental: { connect: { id: rentalId } },
             rentalItem: rentalItemId ? { connect: { id: rentalItemId } } : undefined,

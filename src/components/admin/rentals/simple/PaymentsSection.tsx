@@ -22,16 +22,46 @@ export interface PaymentInfo {
   type: SALETYPE;
   amount: number;
   dueDate: string;
+  
+  // ESPECE (Cash) schedule fields
+  cashInstallments?: number; // Number of installments
+  cashInstallmentAmount?: number; // Amount per installment
+  cashNextDueDate?: string; // Next installment due date
+  cashFrequency?: string; // "WEEKLY", "MONTHLY", "QUARTERLY"
+  // Legacy cash fields (keep for backward compatibility)
+  cashTotalPrice?: number;
+  cashCurrentPayment?: number;
+  cashRemainingAmount?: number;
+  cashRemainingDueDate?: string;
+  
+  // CHEQUE schedule fields
+  chequeInstallments?: number; // Number of cheques
+  chequeFrequency?: string; // "MONTHLY", "QUARTERLY", "YEARLY"
+  chequeNextDueDate?: string; // Next cheque due date
+  chequeSerialStart?: string; // Starting cheque serial number
+  chequeNumber?: string; // Current cheque number
+  chequeDate?: string; // Cheque date
+  
+  // VIREMENT schedule fields
+  virementFrequency?: string; // "MONTHLY", "QUARTERLY", "YEARLY"
+  virementNextDueDate?: string; // Next transfer due date
+  virementBankAccount?: string; // Bank account for transfers
+  virementReference?: string; // Reference for transfers
+  
+  // CNAM schedule fields
   cnamStatus?: string;
   cnamSupportAmount?: number;
   cnamDebutDate?: string; // Start date of CNAM support
   cnamEndDate?: string; // End date of CNAM support (calculated or manual)
   cnamSupportMonths?: number; // Duration in months
-  // Enhanced cash payment fields
-  cashTotalPrice?: number;
-  cashCurrentPayment?: number;
-  cashRemainingAmount?: number;
-  cashRemainingDueDate?: string;
+  cnamFollowupDate?: string; // Follow-up date
+  
+  // TRAITE schedule fields
+  traiteFrequency?: string; // "MONTHLY", "QUARTERLY", "YEARLY"
+  traiteNextDueDate?: string; // Next traite due date
+  traiteReference?: string; // Traite reference number
+  traiteDueDate?: string; // Due date for traite
+  
   alerts: PaymentAlert[];
   notes: string;
 }

@@ -12,7 +12,7 @@ interface CalendarEvent {
   id: string;
   title: string;
   date: Date;
-  type: 'appointment' | 'rental' | 'sale' | 'diagnostic' | 'payment' | 'reminder';
+  type: 'appointment' | 'rental' | 'sale' | 'diagnostic' | 'payment' | 'reminder' | 'rental_period';
   status: string;
   patient?: {
     id: string;
@@ -20,6 +20,12 @@ interface CalendarEvent {
     phone: string;
   };
   details: Record<string, any>;
+  // For rental periods
+  startDate?: Date;
+  endDate?: Date;
+  isOngoing?: boolean;
+  dayInPeriod?: number;
+  totalDays?: number;
 }
 
 interface NewCalendarProps {
@@ -624,7 +630,7 @@ export default function NewCalendar({ events, onEventClick, onDateClick, onRefre
                               <div className="flex justify-between items-start">
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2 mb-2">
-                                    <Badge className={`${periodStatusConfig[event.status]?.bgColor || 'bg-gray-400'} text-white text-xs`}>
+                                    <Badge className={`${periodStatusConfig[event.status as keyof typeof periodStatusConfig]?.bgColor || 'bg-gray-400'} text-white text-xs`}>
                                       {translateRentalStatus(event.status)}
                                     </Badge>
                                     <span className="text-sm font-medium">{event.patient?.fullName}</span>
@@ -667,7 +673,7 @@ export default function NewCalendar({ events, onEventClick, onDateClick, onRefre
                     {Object.entries(groupedActivities).map(([type, events]) => {
                       if (type === 'rental_periods' || events.length === 0) return null;
                       
-                      const config = eventTypeConfig[type] || eventTypeConfig.reminder;
+                      const config = eventTypeConfig[type as keyof typeof eventTypeConfig] || eventTypeConfig.reminder;
                       
                       return (
                         <div key={type}>

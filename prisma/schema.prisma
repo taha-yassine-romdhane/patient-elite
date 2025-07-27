@@ -151,15 +151,37 @@ model Payment {
   traiteDueDate    DateTime?
   cnamStatus        String? // "ATTENTE" or "ACCORD"
   cnamFollowupDate  DateTime?
-  cnamSupportAmount Float? // Amount supported by CNAM
-  cnamDebutDate     DateTime? // Start date of CNAM support
-  cnamEndDate       DateTime? // End date of CNAM support
-  cnamSupportMonths Int? // Duration of CNAM support in months
-  // Cash payment specific fields
-  cashTotal        Float? // Total amount for cash payments
-  cashAcompte      Float? // Down payment amount
-  cashRest         Float? // Remaining amount to be paid
-  cashRestDate     DateTime? // When the rest is due
+  
+  // Enhanced schedule fields for all payment types
+  // ESPECE (Cash) schedule fields
+  cashInstallments    Int?        // Number of installments
+  cashInstallmentAmount Float?    // Amount per installment
+  cashNextDueDate     DateTime?   // Next installment due date
+  cashFrequency       String?     // "WEEKLY", "MONTHLY", "QUARTERLY"
+  
+  // CHEQUE schedule fields  
+  chequeInstallments  Int?        // Number of cheques
+  chequeFrequency     String?     // "MONTHLY", "QUARTERLY", "YEARLY"
+  chequeNextDueDate   DateTime?   // Next cheque due date
+  chequeSerialStart   String?     // Starting cheque serial number
+  
+  // VIREMENT schedule fields
+  virementFrequency   String?     // "MONTHLY", "QUARTERLY", "YEARLY"
+  virementNextDueDate DateTime?   // Next transfer due date
+  virementBankAccount String?     // Bank account for transfers
+  virementReference   String?     // Reference for transfers
+  
+  // CNAM enhanced schedule fields
+  cnamDebutDate       DateTime?   // CNAM support start date
+  cnamEndDate         DateTime?   // CNAM support end date  
+  cnamSupportMonths   Int?        // Duration in months
+  cnamSupportAmount   Float?      // Amount covered by CNAM
+  
+  // TRAITE schedule fields
+  traiteFrequency     String?     // "MONTHLY", "QUARTERLY", "YEARLY"
+  traiteNextDueDate   DateTime?   // Next traite due date
+  traiteReference     String?     // Traite reference number
+  
   notes            String?
   // Relations
   sale             Sale?       @relation(fields: [saleId], references: [id])
@@ -288,6 +310,7 @@ enum SALETYPE {
 
 enum TRANSACTION_STATUS {
   PENDING
+  IN_PROGRESS
   COMPLETED
   CANCELLED
 }

@@ -227,7 +227,6 @@ export default function Home() {
               <Button asChild variant="link" className="text-gray-400 hover:text-white">
                 <Link href="/login">Connexion</Link>
               </Button>
-             
             </div>
           </div>
         </div>
